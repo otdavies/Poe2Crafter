@@ -16,6 +16,25 @@ export function parseLuaData(source: string): unknown {
   return evalExpression(last.arguments[0]);
 }
 
+/**
+ * Parse PoB's assignment-style data files (`Bases/*.lua`), which contain no
+ * `return` — just a sequence of `itemBases["Name"] = { ... }` statements.
+ * Returns the record keyed by the assigned string index.
+ */
+export function parseLuaAssignments(source: string): Record<string, unknown> {
+  const ast = parse(source, { comments: false });
+  const record: Record<string, unknown> = {};
+  for (const statement of ast.body) {
+    if (statement.type !== "AssignmentStatement") continue;
+    const [target] = statement.variables;
+    const [value] = statement.init;
+    if (target?.type !== "IndexExpression" || !value) continue;
+    const key = evalExpression(target.index);
+    record[String(key)] = evalExpression(value);
+  }
+  return record;
+}
+
 function evalExpression(node: Expression): unknown {
   switch (node.type) {
     case "StringLiteral": {

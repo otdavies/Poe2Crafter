@@ -6,12 +6,51 @@
 export interface BundleMeta {
   league: string;
   generatedAt: string;
-  sources: Record<string, { sha256: string; url: string }>;
+  /**
+   * carriedForward: this compile could not reach the source and reused the
+   * previous bundle's output (hash is the one recorded by that compile).
+   */
+  sources: Record<string, { sha256: string; url: string; carriedForward?: boolean }>;
   counts: Record<string, number>;
 }
 
+/** Base defence/weapon numbers (from PoB's per-base stat tables). */
+export interface BaseProperties {
+  armour?: number;
+  evasion?: number;
+  energyShield?: number;
+  /** Runic Ward (0.5 defence). */
+  ward?: number;
+  blockChance?: number;
+  movementPenalty?: number;
+  physMin?: number;
+  physMax?: number;
+  fireMin?: number;
+  fireMax?: number;
+  coldMin?: number;
+  coldMax?: number;
+  lightningMin?: number;
+  lightningMax?: number;
+  chaosMin?: number;
+  chaosMax?: number;
+  critChance?: number;
+  attacksPerSecond?: number;
+  range?: number;
+  reloadTime?: number;
+}
+
+export interface BaseRequirements {
+  level?: number;
+  str?: number;
+  dex?: number;
+  int?: number;
+}
+
 export interface BaseItem {
-  /** GGG metadata id, e.g. "Metadata/Items/Amulets/FourAmulet1" */
+  /**
+   * GGG metadata id, e.g. "Metadata/Items/Amulets/FourAmulet1".
+   * Jewel bases are synthesized from PoB data and use "Jewel/<name>".
+   */
   id: string;
   name: string;
   itemClass: string;
@@ -21,6 +60,8 @@ export interface BaseItem {
   implicits: string[];
   width: number;
   height: number;
+  properties?: BaseProperties;
+  req?: BaseRequirements;
 }
 
 export type GenerationType = "prefix" | "suffix" | "essence" | "corrupted" | "unique";

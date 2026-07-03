@@ -93,6 +93,21 @@ for (const c of currency) {
   check(c.icon.startsWith("https://"), `currency ${c.id}: bad icon URL`);
 }
 
+// Jewel bases (synthesized from PoB) and per-base stat coverage
+const jewels = bases.filter((b) => b.itemClass === "Jewel");
+check(jewels.length >= 8, `expected the 8 jewel bases, got ${jewels.length}`);
+for (const jewel of jewels) {
+  check(jewel.implicits.length === 0, `jewel ${jewel.name}: unexpected implicits`);
+}
+const bodies = bases.filter((b) => b.itemClass === "Body Armour");
+const bodiesWithDefence = bodies.filter(
+  (b) => b.properties?.armour || b.properties?.evasion || b.properties?.energyShield,
+);
+check(
+  bodiesWithDefence.length > bodies.length * 0.9,
+  `only ${bodiesWithDefence.length}/${bodies.length} body armours have defence stats`,
+);
+
 // Bundle-level sanity: the counts a 0.5.x export must roughly have
 check(bases.length > 1000, `too few bases: ${bases.length}`);
 check(mods.filter((m) => m.generation === "prefix").length > 500, "too few prefixes");

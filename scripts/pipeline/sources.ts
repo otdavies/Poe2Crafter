@@ -22,6 +22,13 @@ const POB =
   "https://raw.githubusercontent.com/PathOfBuildingCommunity/PathOfBuilding-PoE2/dev/src/Data";
 const TRADE2 = "https://www.pathofexile.com/api/trade2/data";
 
+/** PoB `src/Data/Bases/<name>.lua` files covering our supported classes. */
+export const POB_BASE_FILES = [
+  "amulet", "axe", "belt", "body", "boots", "bow", "claw", "crossbow",
+  "dagger", "flail", "focus", "gloves", "helmet", "jewel", "mace", "quiver",
+  "ring", "sceptre", "shield", "spear", "staff", "sword", "talisman", "wand",
+] as const;
+
 export interface Source {
   /** Cache filename, also the key used in meta.json provenance. */
   file: string;
@@ -40,6 +47,13 @@ export const SOURCES: Source[] = [
   // Path of Building PoE2 fork: mappings the dat export lacks
   { file: "Essence.lua", url: `${POB}/Essence.lua` },
   { file: "LiquidEmotions.lua", url: `${POB}/LiquidEmotions.lua` },
+
+  // PoB base-item stat tables: defence/weapon numbers per base (+ the jewel
+  // bases, which the repoe export's item filter doesn't cover)
+  ...POB_BASE_FILES.map((name) => ({
+    file: `Bases/${name}.lua`,
+    url: `${POB}/Bases/${name}.lua`,
+  })),
 
   // Official trade API: canonical ids, display names, icon URLs
   { file: "trade2_static.json", url: `${TRADE2}/static`, ggg: true },
