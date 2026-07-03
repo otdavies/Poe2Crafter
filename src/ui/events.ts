@@ -22,6 +22,16 @@ export function describeEvent(data: EngineData, event: CraftEvent): string {
       return `+ implicit: ${modLine(data, event.mod)}`;
     case "values_rerolled":
       return "Rerolled modifier values";
+    case "values_pushed":
+      return "Modifier values pushed beyond their limits";
+    case "sanctified":
+      return "Sanctified — values locked in forever";
+    case "fractured":
+      return `Fractured: ${modLine(data, event.mod)}`;
+    case "quality":
+      return event.quality.percent > 0
+        ? `Catalyst quality: ${event.quality.percent}%`
+        : "Catalyst quality consumed";
     case "corrupted":
       return "Corrupted";
     case "no_change":

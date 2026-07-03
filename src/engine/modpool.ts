@@ -58,3 +58,32 @@ export function pickFromPool(rng: Rng, pool: PoolEntry[]): Mod {
   if (pool.length === 0) throw new Error("mod pool is empty");
   return pool[pickWeighted(rng, pool.map((e) => e.weight))].mod;
 }
+
+/** Catalyst tags of the item's current explicit mods (for homogenising). */
+export function explicitCatalystTags(data: EngineData, item: Item): Set<string> {
+  const tags = new Set<string>();
+  for (const rolled of item.explicits) {
+    for (const tag of data.mod(rolled.modId).catalystTags) tags.add(tag);
+  }
+  return tags;
+}
+
+/**
+ * Omen of Homogenising Exaltation/Coronation: restrict the pool to mods
+ * sharing a type (catalyst tag) with an existing explicit modifier.
+ */
+export function homogenisedPool(pool: PoolEntry[], tags: ReadonlySet<string>): PoolEntry[] {
+  return pool.filter((e) => e.mod.catalystTags.some((t) => tags.has(t)));
+}
+
+/**
+ * Omen of Catalysing Exaltation: quality is consumed to boost the chance of
+ * matching-type mods. APPROXIMATION (see mechanics.ts OMEN docs): weights of
+ * matching mods are multiplied by (1 + quality%).
+ */
+export function catalysedPool(pool: PoolEntry[], tag: string, percent: number): PoolEntry[] {
+  const factor = 1 + percent / 100;
+  return pool.map((e) =>
+    e.mod.catalystTags.includes(tag) ? { ...e, weight: e.weight * factor } : e,
+  );
+}

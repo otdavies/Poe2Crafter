@@ -3,14 +3,21 @@
  * pure — this store is the only place that mutates over time.
  */
 import { create } from "zustand";
-import type { BundleMeta, CurrencyItem } from "../data/schema.ts";
-import { ACTIONS, type CraftEvent } from "../engine/actions.ts";
+import type {
+  BundleMeta,
+  CurrencyItem,
+  DistilledEmotion,
+  Essence,
+} from "../data/schema.ts";
+import { actionFor, type CraftEvent } from "../engine/actions.ts";
 import { EngineData } from "../engine/data.ts";
 import { createItem, type Item } from "../engine/item.ts";
 import { liveRng } from "../engine/rng.ts";
 
 export interface CraftStep {
   currencyId: string;
+  /** Omens that were armed and consumed by this step. */
+  omens: string[];
   events: CraftEvent[];
   /** Item state after this step (initial item lives in session.initial). */
   after: Item;
@@ -31,10 +38,13 @@ interface AppState {
   session?: Session;
   /** Currency id "held on the cursor", ready to apply to the item. */
   selectedCurrency?: string;
+  /** Omens armed for the next currency use (game: activation slots). */
+  armedOmens: string[];
 
   init(): Promise<void>;
   startCraft(baseId: string, ilvl: number): void;
   selectCurrency(id: string | undefined): void;
+  toggleOmen(id: string): void;
   applySelected(): void;
   undo(): void;
   reset(): void;
@@ -54,16 +64,24 @@ export const currentItem = (session: Session): Item =>
 export const useApp = create<AppState>((set, get) => ({
   status: "loading",
   currency: [],
+  armedOmens: [],
 
   async init() {
     try {
-      const [meta, mods, bases, currency] = await Promise.all([
+      const [meta, mods, bases, currency, essences, emotions] = await Promise.all([
         fetchJson<BundleMeta>("meta.json"),
         fetchJson<never[]>("mods.json"),
         fetchJson<never[]>("bases.json"),
         fetchJson<CurrencyItem[]>("currency.json"),
+        fetchJson<Essence[]>("essences.json"),
+        fetchJson<DistilledEmotion[]>("emotions.json"),
       ]);
-      set({ status: "ready", meta, currency, data: new EngineData(mods, bases) });
+      set({
+        status: "ready",
+        meta,
+        currency,
+        data: new EngineData(mods, bases, essences, emotions),
+      });
     } catch (err) {
       set({ status: "error", error: err instanceof Error ? err.message : String(err) });
     }
@@ -79,22 +97,39 @@ export const useApp = create<AppState>((set, get) => ({
     set({ selectedCurrency: id });
   },
 
+  toggleOmen(id) {
+    const { armedOmens } = get();
+    set({
+      armedOmens: armedOmens.includes(id)
+        ? armedOmens.filter((o) => o !== id)
+        : [...armedOmens, id],
+    });
+  },
+
   applySelected() {
-    const { data, session, selectedCurrency } = get();
+    const { data, session, selectedCurrency, armedOmens } = get();
     if (!data || !session || !selectedCurrency) return;
-    const action = ACTIONS.get(selectedCurrency);
+    const action = actionFor(data, selectedCurrency);
     if (!action) return;
     const item = currentItem(session);
-    if (action.canApply(data, item) !== null) return;
-    const result = action.apply(data, item, liveRng);
+    const omens = new Set(armedOmens);
+    if (action.canApply(data, item, omens) !== null) return;
+    const result = action.apply(data, item, liveRng, omens);
+    const consumed = result.consumedOmens ?? [];
     set({
       session: {
         ...session,
         steps: [
           ...session.steps,
-          { currencyId: selectedCurrency, events: result.events, after: result.item },
+          {
+            currencyId: selectedCurrency,
+            omens: consumed,
+            events: result.events,
+            after: result.item,
+          },
         ],
       },
+      armedOmens: armedOmens.filter((o) => !consumed.includes(o)),
     });
   },
 
@@ -105,6 +140,6 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   reset() {
-    set({ session: undefined, selectedCurrency: undefined });
+    set({ session: undefined, selectedCurrency: undefined, armedOmens: [] });
   },
 }));

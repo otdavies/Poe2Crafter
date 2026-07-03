@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ACTIONS, type CraftAction } from "./actions.ts";
-import { countByGeneration, createItem, type Item } from "./item.ts";
+import { affixLimit, countByGeneration, createItem, type Item } from "./item.ts";
 import { seededRng, type Rng } from "./rng.ts";
 import { findBase, loadEngineData } from "./testutil.ts";
 
@@ -17,7 +17,7 @@ function apply(id: string, item: Item, rng: Rng): Item {
 
 /** Invariants that must hold for every item the engine ever produces. */
 function assertInvariants(item: Item): void {
-  const limit = item.rarity === "rare" ? 3 : item.rarity === "magic" ? 1 : 0;
+  const limit = affixLimit(data, item);
   expect(countByGeneration(data, item, "prefix")).toBeLessThanOrEqual(limit);
   expect(countByGeneration(data, item, "suffix")).toBeLessThanOrEqual(limit);
 
@@ -30,10 +30,12 @@ function assertInvariants(item: Item): void {
     }
   }
 
-  // rolled values must be inside each stat's range, ilvl gate must hold
+  // rolled values must be inside each stat's range — unless corruption or
+  // sanctification pushed them beyond it — and the ilvl gate must hold
   for (const rolled of [...item.explicits, ...item.implicits]) {
     const mod = data.mod(rolled.modId);
     expect(rolled.values).toHaveLength(mod.stats.length);
+    if (item.corrupted || item.sanctified) continue;
     rolled.values.forEach((value, i) => {
       expect(value).toBeGreaterThanOrEqual(mod.stats[i].min);
       expect(value).toBeLessThanOrEqual(mod.stats[i].max);
@@ -139,6 +141,22 @@ describe("basic orb progression", () => {
     for (const [id, action] of ACTIONS) {
       expect(action.canApply(data, item), id).toMatch(/[Cc]orrupted/);
     }
+  });
+
+  it("fracturing orb locks one of 4+ explicits, once", () => {
+    const rng = seededRng(29);
+    let item = createItem(data, findBase(data, "Spear"), 82, rng);
+    item = apply("alch", item, rng);
+    expect(item.explicits).toHaveLength(4);
+    item = apply("fracturing-orb", item, rng);
+    expect(item.explicits.filter((m) => m.fractured)).toHaveLength(1);
+    const orb = ACTIONS.get("fracturing-orb") as CraftAction;
+    expect(orb.canApply(data, item)).toMatch(/already has a fractured/);
+
+    let thin = createItem(data, findBase(data, "Spear"), 82, rng);
+    thin = apply("transmute", thin, rng);
+    thin = apply("regal", thin, rng);
+    expect(orb.canApply(data, thin)).toMatch(/at least 4/);
   });
 
   it("vaal produces each outcome kind across seeds", () => {

@@ -24,6 +24,11 @@ export function seededRng(seed: number): Rng {
   };
 }
 
+/** Uniform float in [min, max). */
+export function rollFloat(rng: Rng, min: number, max: number): number {
+  return min + rng.next() * (max - min);
+}
+
 /** Integer in [min, max], inclusive. */
 export function rollInt(rng: Rng, min: number, max: number): number {
   return min + Math.floor(rng.next() * (max - min + 1));
