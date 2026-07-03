@@ -89,7 +89,12 @@ const bases: BaseItem[] = Object.entries(rawBases)
 // (implicits and essence display mods have generation_type "unique").
 const wanted = new Set<string>();
 for (const [id, m] of Object.entries(rawMods)) {
-  if (m.domain === "item" && (m.generation_type === "prefix" || m.generation_type === "suffix")) {
+  if (
+    m.domain === "item" &&
+    (m.generation_type === "prefix" ||
+      m.generation_type === "suffix" ||
+      m.generation_type === "corrupted") // Vaal Orb implicit pool
+  ) {
     wanted.add(id);
   }
 }
@@ -120,6 +125,7 @@ const mods: Mod[] = [...wanted]
       ilvl: m.required_level,
       weights: m.spawn_weights.map((w: any) => [w.tag, w.weight] as [string, number]),
       catalystTags: m.implicit_tags,
+      addsTags: m.adds_tags,
       essenceOnly: m.is_essence_only,
       stats: m.stats ?? [],
     } satisfies Mod;

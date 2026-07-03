@@ -47,6 +47,8 @@ export interface Mod {
   weights: [tag: string, weight: number][];
   /** Tags used by catalysts to decide what quality boosts */
   catalystTags: string[];
+  /** Tags this mod adds to the item, affecting later spawn-weight checks */
+  addsTags: string[];
   /** Only rollable via essences, never from the general pool */
   essenceOnly: boolean;
   stats: ModStat[];
