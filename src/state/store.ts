@@ -13,6 +13,7 @@ import { actionFor, type CraftEvent } from "../engine/actions.ts";
 import { EngineData } from "../engine/data.ts";
 import { createItem, type Item } from "../engine/item.ts";
 import { liveRng } from "../engine/rng.ts";
+import { decodeSession, encodedFromHash } from "./share.ts";
 
 export interface CraftStep {
   currencyId: string;
@@ -40,6 +41,11 @@ interface AppState {
   selectedCurrency?: string;
   /** Omens armed for the next currency use (game: activation slots). */
   armedOmens: string[];
+  /**
+   * Tutorial step-through: number of steps currently shown (0 = initial
+   * item, steps.length = finished). undefined = live crafting.
+   */
+  replayIndex?: number;
 
   init(): Promise<void>;
   startCraft(baseId: string, ilvl: number): void;
@@ -48,6 +54,9 @@ interface AppState {
   applySelected(): void;
   undo(): void;
   reset(): void;
+  enterReplay(): void;
+  exitReplay(): void;
+  setReplay(index: number): void;
 }
 
 const DATA_BASE = `${import.meta.env.BASE_URL}data/0.5`;
@@ -60,6 +69,10 @@ async function fetchJson<T>(file: string): Promise<T> {
 
 export const currentItem = (session: Session): Item =>
   session.steps.length > 0 ? session.steps[session.steps.length - 1].after : session.initial;
+
+/** Item state after the first `index` steps (0 = the initial item). */
+export const itemAt = (session: Session, index: number): Item =>
+  index <= 0 ? session.initial : session.steps[Math.min(index, session.steps.length) - 1].after;
 
 export const useApp = create<AppState>((set, get) => ({
   status: "loading",
@@ -76,11 +89,16 @@ export const useApp = create<AppState>((set, get) => ({
         fetchJson<Essence[]>("essences.json"),
         fetchJson<DistilledEmotion[]>("emotions.json"),
       ]);
+      const data = new EngineData(mods, bases, essences, emotions);
+      // A share link opens straight into tutorial mode.
+      const encoded = encodedFromHash(window.location.hash);
+      const shared = encoded ? decodeSession(data, encoded) : undefined;
       set({
         status: "ready",
         meta,
         currency,
-        data: new EngineData(mods, bases, essences, emotions),
+        data,
+        ...(shared && { session: shared, replayIndex: 0 }),
       });
     } catch (err) {
       set({ status: "error", error: err instanceof Error ? err.message : String(err) });
@@ -107,8 +125,8 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   applySelected() {
-    const { data, session, selectedCurrency, armedOmens } = get();
-    if (!data || !session || !selectedCurrency) return;
+    const { data, session, selectedCurrency, armedOmens, replayIndex } = get();
+    if (!data || !session || !selectedCurrency || replayIndex !== undefined) return;
     const action = actionFor(data, selectedCurrency);
     if (!action) return;
     const item = currentItem(session);
@@ -134,12 +152,35 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   undo() {
-    const { session } = get();
-    if (!session || session.steps.length === 0) return;
+    const { session, replayIndex } = get();
+    if (!session || session.steps.length === 0 || replayIndex !== undefined) return;
     set({ session: { ...session, steps: session.steps.slice(0, -1) } });
   },
 
   reset() {
-    set({ session: undefined, selectedCurrency: undefined, armedOmens: [] });
+    set({
+      session: undefined,
+      selectedCurrency: undefined,
+      armedOmens: [],
+      replayIndex: undefined,
+    });
+    // drop any share-link hash so a reload doesn't resurrect the session
+    if (window.location.hash) history.replaceState(null, "", window.location.pathname);
+  },
+
+  enterReplay() {
+    const { session } = get();
+    if (!session || session.steps.length === 0) return;
+    set({ replayIndex: 0, selectedCurrency: undefined });
+  },
+
+  exitReplay() {
+    set({ replayIndex: undefined });
+  },
+
+  setReplay(index) {
+    const { session, replayIndex } = get();
+    if (!session || replayIndex === undefined) return;
+    set({ replayIndex: Math.max(0, Math.min(index, session.steps.length)) });
   },
 }));

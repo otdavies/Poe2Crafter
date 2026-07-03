@@ -16,6 +16,7 @@
     "data:oracle": "tsx scripts/pipeline/oracle.ts"
   },
   "dependencies": {
+    "lz-string": "^1.5.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "zustand": "^5.0.14"
