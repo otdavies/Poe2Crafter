@@ -1,39 +1,81 @@
-import { useEffect, useState } from "react";
-import type { BundleMeta } from "./data/schema.ts";
+import { useEffect } from "react";
+import { currentItem, useApp } from "./state/store.ts";
+import { BasePicker } from "./ui/BasePicker.tsx";
+import { CurrencyPanel } from "./ui/CurrencyPanel.tsx";
+import { ItemCard } from "./ui/ItemCard.tsx";
+import { StepLog } from "./ui/StepLog.tsx";
 import "./App.css";
 
-const DATA_URL = `${import.meta.env.BASE_URL}data/0.5/meta.json`;
-
 export default function App() {
-  const [meta, setMeta] = useState<BundleMeta | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const app = useApp();
 
   useEffect(() => {
-    fetch(DATA_URL)
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
-      .then(setMeta)
-      .catch((err: Error) => setError(err.message));
+    void useApp.getState().init();
   }, []);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") useApp.getState().selectCurrency(undefined);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  if (app.status === "loading") return <main className="shell">Loading game data…</main>;
+  if (app.status === "error" || !app.data) {
+    return <main className="shell error">Failed to load data bundle: {app.error}</main>;
+  }
+
+  const item = app.session ? currentItem(app.session) : undefined;
+
   return (
-    <main className="shell">
-      <h1>PoeSolver</h1>
-      <p className="tagline">Path of Exile 2 crafting simulator — league {meta?.league ?? "…"}</p>
-      {error && <p className="error">Failed to load data bundle: {error}</p>}
-      {meta && (
-        <dl className="counts">
-          {Object.entries(meta.counts).map(([key, count]) => (
-            <div key={key}>
-              <dt>{key}</dt>
-              <dd>{count.toLocaleString()}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-      <footer>
+    <div className={`bench ${app.selectedCurrency ? "holding-currency" : ""}`}>
+      <header className="topbar">
+        <h1>PoeSolver</h1>
+        <span className="tagline">PoE2 crafting simulator — league {app.meta?.league}</span>
+        <div className="topbar-actions">
+          {app.session && (
+            <>
+              <button type="button" onClick={app.undo} disabled={app.session.steps.length === 0}>
+                Undo
+              </button>
+              <button type="button" onClick={app.reset}>
+                New item
+              </button>
+            </>
+          )}
+        </div>
+      </header>
+
+      <main className="bench-main">
+        <CurrencyPanel
+          data={app.data}
+          currency={app.currency}
+          item={item}
+          selected={app.selectedCurrency}
+          onSelect={app.selectCurrency}
+        />
+
+        <section className="item-area">
+          {!app.session && <BasePicker data={app.data} onStart={app.startCraft} />}
+          {app.session && item && (
+            <ItemCard
+              data={app.data}
+              item={item}
+              active={Boolean(app.selectedCurrency)}
+              onClick={app.applySelected}
+            />
+          )}
+        </section>
+
+        {app.session && (
+          <StepLog data={app.data} currency={app.currency} steps={app.session.steps} />
+        )}
+      </main>
+
+      <footer className="disclaimer">
         Not affiliated with or endorsed by Grinding Gear Games.
-        {meta && <> Data generated {new Date(meta.generatedAt).toLocaleDateString()}.</>}
       </footer>
-    </main>
+    </div>
   );
 }
