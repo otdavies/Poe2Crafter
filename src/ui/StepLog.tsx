@@ -4,12 +4,17 @@ import type { EngineData } from "../engine/data.ts";
 import type { CraftStep } from "../state/store.ts";
 import { describeEvent } from "./events.ts";
 
-export function StepLog({ data, currency, steps }: {
+export function StepLog({ data, currency, steps, replayIndex, onJump }: {
   data: EngineData;
   currency: CurrencyItem[];
   steps: CraftStep[];
+  /** Tutorial mode: steps >= this index are upcoming (outcomes hidden). */
+  replayIndex?: number;
+  /** Tutorial mode: click a step to rewind/skip to just before it. */
+  onJump?: (index: number) => void;
 }) {
   const byId = new Map(currency.map((c) => [c.id, c]));
+  const replaying = replayIndex !== undefined;
   return (
     <section className="step-log">
       <h3>Steps</h3>
@@ -17,9 +22,14 @@ export function StepLog({ data, currency, steps }: {
       <ol>
         {steps.map((step, i) => {
           const info = byId.get(step.currencyId);
+          const state = !replaying ? "" : i === replayIndex ? "step-current" : i > replayIndex ? "step-future" : "";
           return (
-            <li key={i}>
-              <div className="step-header">
+            <li key={i} className={state}>
+              <div
+                className="step-header"
+                onClick={replaying && onJump ? () => onJump(i) : undefined}
+                role={replaying ? "button" : undefined}
+              >
                 {info && <img src={info.icon} alt="" />}
                 <span>{info?.name ?? step.currencyId}</span>
               </div>
@@ -28,13 +38,15 @@ export function StepLog({ data, currency, steps }: {
                   under {step.omens.map((id) => byId.get(id)?.name ?? id).join(" + ")}
                 </div>
               )}
-              <ul>
-                {step.events.map((event, j) => (
-                  <li key={j} className={`event event-${event.kind}`}>
-                    {describeEvent(data, event)}
-                  </li>
-                ))}
-              </ul>
+              {(!replaying || i < replayIndex) && (
+                <ul>
+                  {step.events.map((event, j) => (
+                    <li key={j} className={`event event-${event.kind}`}>
+                      {describeEvent(data, event)}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           );
         })}

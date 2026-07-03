@@ -1,5 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { renderModText } from "./modtext.ts";
+import { familyText, renderModText } from "./modtext.ts";
+
+describe("familyText", () => {
+  it("merges tier ranges positionally", () => {
+    expect(
+      familyText(["Adds (2-3) to (4-6) Physical Damage", "Adds (5-8) to (9-14) Physical Damage"]),
+    ).toBe("Adds (2–8) to (4–14) Physical Damage");
+  });
+
+  it("falls back to the highest tier when texts differ structurally", () => {
+    expect(familyText(["+20 to Armour", "+(30-40) to Armour"])).toBe("+(30-40) to Armour");
+  });
+
+  it("passes single tiers through unchanged", () => {
+    expect(familyText(["+(10-19) to maximum Life"])).toBe("+(10-19) to maximum Life");
+  });
+});
 
 describe("renderModText", () => {
   it("substitutes a single range", () => {

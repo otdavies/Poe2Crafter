@@ -558,3 +558,184 @@ button.primary {
 .event-fractured { color: #a29162; }
 .event-sanctified { color: #e8d5a0; }
 .event-quality { color: #8888ff; }
+
+/* ---- odds panel --------------------------------------------------------- */
+.odds-panel {
+  width: 100%;
+  max-width: 28rem;
+  background: #131317;
+  border: 1px solid #26262a;
+  border-radius: 4px;
+  padding: 0.8rem 0.9rem;
+  font-size: 0.8rem;
+}
+
+.odds-panel h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8a7a50;
+}
+
+.odds-panel h3 img {
+  width: 22px;
+  height: 22px;
+}
+
+.odds-panel h4 {
+  margin: 0.6rem 0 0.3rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6d6d78;
+}
+
+.odds-rolls {
+  color: #d4b060;
+}
+
+.odds-split {
+  margin: 0 0 0.3rem;
+  font-size: 0.72rem;
+  color: #777;
+}
+
+.odds-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.odds-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  padding: 0.12rem 0;
+  color: #9a9ab8;
+}
+
+.odds-chance {
+  flex: 0 0 3.4rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #d4b060;
+}
+
+.odds-text {
+  min-width: 0;
+}
+
+.odds-protected {
+  opacity: 0.45;
+}
+
+.odds-protected .odds-chance {
+  color: #777;
+}
+
+.odds-rest {
+  color: #666;
+  font-style: italic;
+}
+
+.odds-blocked {
+  margin: 0.2rem 0 0;
+  color: #c96a6a;
+}
+
+.odds-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.7rem;
+  color: #666;
+  font-style: italic;
+}
+
+.gen-badge {
+  flex: 0 0 auto;
+  display: inline-block;
+  width: 1rem;
+  text-align: center;
+  border-radius: 3px;
+  font-size: 0.62rem;
+  line-height: 1.2;
+  border: 1px solid #333;
+}
+
+.gen-prefix { color: #7d9c6a; border-color: #3c4a34; }
+.gen-suffix { color: #6a8bc9; border-color: #33415c; }
+.gen-corrupted { color: #d25454; border-color: #5c3333; }
+
+/* ---- tutorial mode ------------------------------------------------------ */
+.tutorial-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  max-width: 28rem;
+  background: #16130d;
+  border: 1px solid #6a5a30;
+  border-radius: 4px;
+  padding: 0.5rem 0.7rem;
+  box-shadow: 0 0 12px #d4b06022;
+}
+
+.tutorial-status {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.tutorial-step {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8a7a50;
+}
+
+.tutorial-instruction {
+  font-size: 0.85rem;
+  color: #ccc;
+}
+
+.tutorial-instruction strong {
+  color: #e8d5a0;
+}
+
+.slot-highlight {
+  border-color: #d4b060;
+  animation: slot-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes slot-pulse {
+  0%, 100% { box-shadow: inset 0 2px 6px #000c, 0 0 4px #d4b06044; }
+  50% { box-shadow: inset 0 2px 6px #000c, 0 0 14px #d4b060cc; }
+}
+
+.step-current > .step-header {
+  color: #e8d5a0;
+}
+
+.step-current > .step-header span {
+  text-shadow: 0 0 8px #d4b06055;
+}
+
+.step-future {
+  opacity: 0.45;
+}
+
+.step-log .step-header[role="button"] {
+  cursor: pointer;
+}
+
+.step-log .step-header[role="button"]:hover span {
+  color: #e8d5a0;
+}

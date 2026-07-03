@@ -1,16 +1,23 @@
-import { useEffect } from "react";
-import { currentItem, useApp } from "./state/store.ts";
+import { useEffect, useRef, useState } from "react";
+import { sessionHash } from "./state/share.ts";
+import { currentItem, itemAt, useApp } from "./state/store.ts";
 import { BasePicker } from "./ui/BasePicker.tsx";
 import { ItemCard } from "./ui/ItemCard.tsx";
+import { OddsPanel } from "./ui/OddsPanel.tsx";
 import { StashPanel } from "./ui/StashPanel.tsx";
 import { StepLog } from "./ui/StepLog.tsx";
+import { TutorialBar } from "./ui/TutorialBar.tsx";
 import "./App.css";
 
 export default function App() {
   const app = useApp();
+  const [hovered, setHovered] = useState<string | undefined>();
+  const [copied, setCopied] = useState(false);
+  const copyTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     void useApp.getState().init();
+    return () => clearTimeout(copyTimer.current);
   }, []);
 
   useEffect(() => {
@@ -26,7 +33,32 @@ export default function App() {
     return <main className="shell error">Failed to load data bundle: {app.error}</main>;
   }
 
-  const item = app.session ? currentItem(app.session) : undefined;
+  const replaying = app.replayIndex !== undefined;
+  const item = app.session
+    ? replaying
+      ? itemAt(app.session, app.replayIndex!)
+      : currentItem(app.session)
+    : undefined;
+  const nextStep =
+    replaying && app.session ? app.session.steps[app.replayIndex!] : undefined;
+  // Odds react to the hovered slot; otherwise the held currency (live) or
+  // the tutorial's next step.
+  const oddsCurrency = hovered ?? (replaying ? nextStep?.currencyId : app.selectedCurrency);
+  const oddsOmens = hovered
+    ? app.armedOmens
+    : replaying
+      ? (nextStep?.omens ?? [])
+      : app.armedOmens;
+
+  const share = () => {
+    if (!app.session) return;
+    const url = `${location.origin}${location.pathname}${sessionHash(app.session)}`;
+    history.replaceState(null, "", url);
+    navigator.clipboard?.writeText(url).catch(() => {});
+    setCopied(true);
+    clearTimeout(copyTimer.current);
+    copyTimer.current = setTimeout(() => setCopied(false), 1600);
+  };
 
   return (
     <div className={`bench ${app.selectedCurrency ? "holding-currency" : ""}`}>
@@ -36,9 +68,31 @@ export default function App() {
         <div className="topbar-actions">
           {app.session && (
             <>
-              <button type="button" onClick={app.undo} disabled={app.session.steps.length === 0}>
-                Undo
+              <button type="button" onClick={share} disabled={app.session.steps.length === 0}>
+                {copied ? "Link copied!" : "Share"}
               </button>
+              {replaying ? (
+                <button type="button" onClick={app.exitReplay}>
+                  Exit tutorial
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={app.enterReplay}
+                    disabled={app.session.steps.length === 0}
+                  >
+                    Tutorial
+                  </button>
+                  <button
+                    type="button"
+                    onClick={app.undo}
+                    disabled={app.session.steps.length === 0}
+                  >
+                    Undo
+                  </button>
+                </>
+              )}
               <button type="button" onClick={app.reset}>
                 New item
               </button>
@@ -53,22 +107,36 @@ export default function App() {
           currency={app.currency}
           item={item}
           selected={app.selectedCurrency}
-          armedOmens={app.armedOmens}
+          armedOmens={replaying ? (nextStep?.omens ?? []) : app.armedOmens}
           onSelect={app.selectCurrency}
           onToggleOmen={app.toggleOmen}
+          onHover={setHovered}
+          highlight={
+            nextStep ? { currencyId: nextStep.currencyId, omens: nextStep.omens } : undefined
+          }
+          readOnly={replaying}
         />
 
         <section className="item-area">
           {!app.session && <BasePicker data={app.data} onStart={app.startCraft} />}
           {app.session && item && (
             <>
+              {replaying && (
+                <TutorialBar
+                  currency={app.currency}
+                  session={app.session}
+                  index={app.replayIndex!}
+                  onStep={app.setReplay}
+                  onExit={app.exitReplay}
+                />
+              )}
               <ItemCard
                 data={app.data}
                 item={item}
-                active={Boolean(app.selectedCurrency)}
+                active={!replaying && Boolean(app.selectedCurrency)}
                 onClick={app.applySelected}
               />
-              {app.armedOmens.length > 0 && (
+              {!replaying && app.armedOmens.length > 0 && (
                 <div className="armed-omens">
                   <span className="armed-label">Active omens</span>
                   {app.armedOmens.map((id) => {
@@ -87,12 +155,27 @@ export default function App() {
                   })}
                 </div>
               )}
+              {oddsCurrency && (
+                <OddsPanel
+                  data={app.data}
+                  item={item}
+                  currencyId={oddsCurrency}
+                  omens={oddsOmens}
+                  currency={app.currency}
+                />
+              )}
             </>
           )}
         </section>
 
         {app.session && (
-          <StepLog data={app.data} currency={app.currency} steps={app.session.steps} />
+          <StepLog
+            data={app.data}
+            currency={app.currency}
+            steps={app.session.steps}
+            replayIndex={app.replayIndex}
+            onJump={app.setReplay}
+          />
         )}
       </main>
 

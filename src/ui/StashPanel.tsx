@@ -4,7 +4,7 @@
  * specialised stash tabs. Click a slot to pick the currency up, click the
  * item to apply. Omen slots arm instead of picking up.
  */
-import { useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import type { CurrencyItem, Essence } from "../data/schema.ts";
 import { actionFor } from "../engine/actions.ts";
 import { tradeSlug, type EngineData } from "../engine/data.ts";
@@ -13,6 +13,16 @@ import { ALLOYS, CATALYSTS, CORRUPTED_ESSENCES, OMEN } from "../engine/mechanics
 
 const TABS = ["Currency", "Essences", "Omens", "Breach", "Delirium", "Verisium"] as const;
 type TabId = (typeof TABS)[number];
+
+/** The stash tab a currency id lives in (tutorial mode jumps to it). */
+function tabForCurrency(data: EngineData, id: string): TabId {
+  if (data.essenceByCurrencyId.has(id)) return "Essences";
+  if (data.emotionByCurrencyId.has(id)) return "Delirium";
+  if (CATALYSTS.has(id)) return "Breach";
+  if (ALLOYS.has(id)) return "Verisium";
+  if (id.startsWith("omen-")) return "Omens";
+  return "Currency";
+}
 
 /** Currency tab: dedicated slot groups, like the game's currency tab. */
 const CURRENCY_SECTIONS: { title: string; ids: string[] }[] = [
@@ -67,7 +77,18 @@ interface TooltipState {
   noteKind: "ok" | "blocked" | "info";
 }
 
-export function StashPanel({ data, currency, item, selected, armedOmens, onSelect, onToggleOmen }: {
+export function StashPanel({
+  data,
+  currency,
+  item,
+  selected,
+  armedOmens,
+  onSelect,
+  onToggleOmen,
+  onHover,
+  highlight,
+  readOnly = false,
+}: {
   data: EngineData;
   currency: CurrencyItem[];
   item: Item | undefined;
@@ -75,11 +96,26 @@ export function StashPanel({ data, currency, item, selected, armedOmens, onSelec
   armedOmens: string[];
   onSelect: (id: string | undefined) => void;
   onToggleOmen: (id: string) => void;
+  /** Hovered currency id, for the odds panel. */
+  onHover?: (id: string | undefined) => void;
+  /** Tutorial mode: pulse these slots and jump to the currency's tab. */
+  highlight?: { currencyId?: string; omens: readonly string[] };
+  /** Tutorial mode: slots are display-only. */
+  readOnly?: boolean;
 }) {
   const [tab, setTab] = useState<TabId>("Currency");
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const byId = useMemo(() => new Map(currency.map((c) => [c.id, c])), [currency]);
   const omens = useMemo(() => new Set(armedOmens), [armedOmens]);
+  const highlightId = highlight?.currencyId;
+  const highlighted = useMemo(
+    () => new Set([...(highlight?.omens ?? []), ...(highlightId ? [highlightId] : [])]),
+    [highlight, highlightId],
+  );
+
+  useEffect(() => {
+    if (highlightId) setTab(tabForCurrency(data, highlightId));
+  }, [data, highlightId]);
 
   const blockedReason = (id: string): string | null | undefined => {
     const action = actionFor(data, id);
@@ -92,7 +128,10 @@ export function StashPanel({ data, currency, item, selected, armedOmens, onSelec
     const blocked = blockedReason(info.id);
     let note: string | undefined;
     let noteKind: TooltipState["noteKind"] = "ok";
-    if (isOmen) {
+    if (readOnly) {
+      note = "Tutorial mode — crafting is paused";
+      noteKind = "info";
+    } else if (isOmen) {
       note = omens.has(info.id)
         ? "Armed — consumed by the next matching currency use"
         : "Click to arm for the next currency use";
@@ -117,6 +156,7 @@ export function StashPanel({ data, currency, item, selected, armedOmens, onSelec
     const classes = ["slot"];
     if (selected === id) classes.push("slot-selected");
     if (isOmen && omens.has(id)) classes.push("slot-armed");
+    if (highlighted.has(id)) classes.push("slot-highlight");
     if (options.dim || blocked === undefined) classes.push("slot-unusable");
     else if (!isOmen && blocked) classes.push("slot-blocked");
     return (
@@ -125,14 +165,20 @@ export function StashPanel({ data, currency, item, selected, armedOmens, onSelec
         type="button"
         className={classes.join(" ")}
         onClick={() => {
-          if (options.dim) return;
+          if (options.dim || readOnly) return;
           if (isOmen) onToggleOmen(id);
           else if (blocked === undefined) return;
           else onSelect(selected === id ? undefined : id);
         }}
-        onMouseEnter={(e) => showTooltip(e, info, isOmen)}
+        onMouseEnter={(e) => {
+          showTooltip(e, info, isOmen);
+          if (blocked !== undefined) onHover?.(id);
+        }}
         onMouseMove={(e) => showTooltip(e, info, isOmen)}
-        onMouseLeave={() => setTooltip(null)}
+        onMouseLeave={() => {
+          setTooltip(null);
+          onHover?.(undefined);
+        }}
       >
         <img src={info.icon} alt={info.name} loading="lazy" draggable={false} />
         {isOmen && omens.has(id) && <span className="slot-pip" />}

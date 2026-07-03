@@ -41,6 +41,31 @@ function displayValue(
   return formatValue(display, decimals);
 }
 
+/**
+ * Label for a mod family spanning several tiers: per range position, the
+ * span from the lowest tier minimum to the highest tier maximum (display
+ * units — tier texts carry them already). Falls back to the last (highest)
+ * tier's text when tier texts differ structurally.
+ */
+export function familyText(texts: string[]): string {
+  if (texts.length <= 1) return texts[0] ?? "";
+  const HOLE = "\u0000"; // placeholder no mod text can contain
+  const skeletons = texts.map((t) => t.replace(RANGE_ALL, HOLE));
+  if (!skeletons.every((s) => s === skeletons[0])) return texts[texts.length - 1];
+  const ranges = texts.map((t) =>
+    [...t.matchAll(RANGE_ALL)].map((m) => [Number(m[1]), Number(m[2])] as const),
+  );
+  const merged = ranges[0].map((_, i) => [
+    Math.min(...ranges.map((r) => r[i][0])),
+    Math.max(...ranges.map((r) => r[i][1])),
+  ]);
+  let index = 0;
+  return skeletons[0].replaceAll(HOLE, () => {
+    const [min, max] = merged[index++];
+    return min === max ? String(min) : `(${min}\u2013${max})`;
+  });
+}
+
 export function renderModText(text: string, values: number[], stats?: ModStat[]): string {
   const rangeCount = [...text.matchAll(RANGE_ALL)].length;
   // Unit remapping needs one text range per stat; otherwise pair each range
