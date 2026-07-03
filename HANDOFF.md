@@ -20,8 +20,8 @@ Zustand + Vitest, oxlint).
 | 2 | Engine core + basic orbs (transmute/aug/regal/exalt/chaos +Greater/Perfect, alch, annul, divine, vaal) | ✅ done |
 | 3 | Playable UI: base picker, game-style tooltip, currency panel, step log, undo | ✅ done |
 | 4 | Essences (+corrupted, +Verisium Alloys), omens (arming + interaction order), Fracturing Orb, catalysts (quality), liquid emotions on jewels; stash-tab UI + base item stats | ✅ done |
-| 5 | Odds panel (hover currency → hit chances), share links (lz-string URL hash), tutorial step-through mode | **⬅ NEXT** |
-| 6 | Polish, keyboard shortcuts, computed defences (mods applied to base stats), data-refresh automation PR flow | pending |
+| 5 | Odds panel (hover currency → hit chances), share links (lz-string URL hash), tutorial step-through mode | ✅ done |
+| 6 | Polish, keyboard shortcuts, computed defences (mods applied to base stats), data-refresh automation PR flow | **⬅ NEXT** |
 | 7 | Runes + Runeforging (0.5 league mechanic, 213 runes; bundle already has Runes category + Runemastered bases) | pending |
 
 Recombination is deliberately out of scope (disabled in 0.5 anyway).
@@ -83,17 +83,33 @@ Engine essentials:
   `effectiveValues()` applies catalyst quality at display time (stored rolls
   stay raw).
 
-## Where to pick up: phase 5 notes
+## How phase 5 is built (odds / share / tutorial)
 
-- **Odds panel**: hover a currency → distribution of outcomes. Reuse
-  `rollablePool` + the omen pool shapers so displayed odds can never drift
-  from `apply()`. Remember essence/alloy/emotion actions are deterministic
-  adds (odds only on the removal side / value rolls).
-- **Share links**: serialize `Session` (initial item + steps incl. `omens`)
-  with lz-string into the URL hash. Events already carry everything the
-  tutorial view needs. RNG replay is NOT required — steps store outcomes.
-- **Tutorial mode**: step-through of `session.steps` with the stash
-  highlighting the used currency (and armed omens) per step.
+- **Odds**: `src/engine/odds.ts` `oddsFor(data, item, currencyId, omens)`.
+  Every `CraftAction` now carries a `kind` tag (+ `minModLevel` for tiered
+  orbs) and actions.ts exports its plan/pool plumbing (`planRemoval`,
+  `planAddition`, `additionPool`, `removalCandidates`,
+  `requiredRemovalSide`, `alloyModId`, `validEmotionChoices`, `withoutMod`)
+  so odds and apply() literally share code. Additions are grouped into mod
+  families (key = generation + groups); chaos mixes the replacement pool
+  exactly over each possible removal; Vaal folds impossible outcomes into
+  "no change" the way apply() does. `odds.test.ts` asserts odds == empirical
+  apply() distributions over 8k–20k seeded rolls (keep that invariant for
+  any new mechanic). UI: `src/ui/OddsPanel.tsx`, shown for the hovered or
+  held currency; family labels merge tier ranges via `familyText` in
+  modtext.ts.
+- **Share links**: `src/state/share.ts` — lz-string
+  compressToEncodedURIComponent of `{v: 1, session}` in `#c=…`. Decode
+  validates every base/mod id against the loaded bundle and rejects
+  anything malformed. `init()` restores a valid hash straight into tutorial
+  mode; the Share button writes the URL to the address bar + clipboard;
+  reset() clears the hash.
+- **Tutorial mode**: `replayIndex` in the store (0..steps.length = steps
+  shown; undefined = live). `itemAt(session, i)` picks the displayed item;
+  crafting/undo are guarded off while replaying. `TutorialBar` drives
+  prev/next/exit; StashPanel gets `highlight` (pulses the next step's
+  currency + omens, auto-switches to its tab) and `readOnly`; StepLog dims
+  future steps and hides their outcomes (no spoilers), click jumps.
 
 ## Conventions & gotchas
 
@@ -138,15 +154,18 @@ Engine essentials:
   separately) — it's correctly unusable in the sim until mapped.
 - Omens whose mechanics we don't simulate (map/ritual omens) render dimmed in
   the Omens tab.
+- Odds for multi-roll actions (Alchemy ×4, Greater Exaltation ×2) are
+  per-roll: the exact joint distribution over shrinking pools isn't
+  computed. The panel says so in a note; the odds tests only assert
+  single-roll actions exactly.
 
 ## Verification bar (keep it)
 
 Every phase so far shipped with: unit/property/golden tests on the engine
-(76 passing — omen interaction order, essence family, catalysts, jewels,
-display-unit remapping),
+(89 passing — omen interaction order, essence family, catalysts, jewels,
+display-unit remapping, odds-vs-empirical, share-link roundtrip),
 statistical distribution tests where randomness matters, and for pool
 correctness the Craft of Exile oracle (16 item classes, zero unexplained
-differences). Phase 5's odds panel should get property tests asserting
-displayed odds == empirical apply() distributions under seeded RNG. Run the
-full gate before committing:
+differences). Phase 6's computed defences should get golden tests against
+in-game screenshots or wiki examples. Run the full gate before committing:
 `npm run build && npm run lint && npm test && npm run data:validate`.
