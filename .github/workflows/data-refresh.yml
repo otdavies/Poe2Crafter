@@ -1,0 +1,35 @@
+name: Data refresh
+
+# Regenerates the data bundle from upstream sources and opens a PR if
+# anything changed. The committed bundle is the league pin — this workflow
+# is how a new patch's data enters the repo, always via review.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run data
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: data-refresh
+          title: "data: refresh bundle from upstream sources"
+          commit-message: "data: refresh bundle from upstream sources"
+          body: |
+            Automated data refresh. Review the diff of `public/data/` and the
+            validation output in the workflow run before merging.
+          add-paths: public/data
