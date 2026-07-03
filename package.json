@@ -1,0 +1,34 @@
+{
+  "name": "poesolver",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "data:fetch": "tsx scripts/pipeline/fetch.ts",
+    "data:compile": "tsx scripts/pipeline/compile.ts",
+    "data:validate": "tsx scripts/pipeline/validate.ts",
+    "data": "npm run data:fetch && npm run data:compile && npm run data:validate",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/luaparse": "^0.2.13",
+    "@types/node": "^24.13.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "luaparse": "^0.3.1",
+    "oxlint": "^1.71.0",
+    "tsx": "^4.23.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1",
+    "vitest": "^4.1.9"
+  }
+}

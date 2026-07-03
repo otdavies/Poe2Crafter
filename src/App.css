@@ -1,0 +1,44 @@
+.shell {
+  max-width: 40rem;
+  margin: 4rem auto;
+  padding: 0 1rem;
+}
+
+h1 {
+  font-size: 2rem;
+  color: #d4b060;
+}
+
+.tagline {
+  color: #999;
+}
+
+.error {
+  color: #d44;
+}
+
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin: 2rem 0;
+}
+
+.counts dt {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #777;
+}
+
+.counts dd {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #ddd;
+}
+
+footer {
+  margin-top: 3rem;
+  font-size: 0.75rem;
+  color: #666;
+}
