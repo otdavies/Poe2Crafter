@@ -24,6 +24,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run data
+      - run: npm run data:fetch -- --oracle && npm run data:oracle
       - uses: peter-evans/create-pull-request@v7
         with:
           branch: data-refresh

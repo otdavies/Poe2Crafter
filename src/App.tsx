@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { BundleMeta } from "./data/schema";
+import type { BundleMeta } from "./data/schema.ts";
 import "./App.css";
 
 const DATA_URL = `${import.meta.env.BASE_URL}data/0.5/meta.json`;

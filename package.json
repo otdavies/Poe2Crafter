@@ -12,7 +12,8 @@
     "data:compile": "tsx scripts/pipeline/compile.ts",
     "data:validate": "tsx scripts/pipeline/validate.ts",
     "data": "npm run data:fetch && npm run data:compile && npm run data:validate",
-    "test": "vitest run"
+    "test": "vitest run",
+    "data:oracle": "tsx scripts/pipeline/oracle.ts"
   },
   "dependencies": {
     "react": "^19.2.7",

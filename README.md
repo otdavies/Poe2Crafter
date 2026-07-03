@@ -36,6 +36,7 @@ npm run data           # full pipeline: fetch -> compile -> validate
 npm run data:fetch     # download upstream sources into .pipeline-cache/
 npm run data:compile   # .pipeline-cache/ -> public/data/<league>/
 npm run data:validate  # invariant checks on the compiled bundle
+npm run data:oracle    # cross-check engine pool resolution vs Craft of Exile
 ```
 
 ## Deployment
