@@ -23,6 +23,11 @@ export function StepLog({ data, currency, steps }: {
                 {info && <img src={info.icon} alt="" />}
                 <span>{info?.name ?? step.currencyId}</span>
               </div>
+              {step.omens.length > 0 && (
+                <div className="step-omens">
+                  under {step.omens.map((id) => byId.get(id)?.name ?? id).join(" + ")}
+                </div>
+              )}
               <ul>
                 {step.events.map((event, j) => (
                   <li key={j} className={`event event-${event.kind}`}>

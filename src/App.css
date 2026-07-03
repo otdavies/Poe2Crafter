@@ -34,13 +34,13 @@
 .bench-main {
   flex: 1;
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr) 300px;
+  grid-template-columns: 420px minmax(0, 1fr) 300px;
   gap: 1rem;
   padding: 1rem;
   align-items: start;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1100px) {
   .bench-main {
     grid-template-columns: 1fr;
   }
@@ -92,68 +92,221 @@ button.primary {
   color: #e8d5a0;
 }
 
-/* ---- currency panel --------------------------------------------------- */
-.currency-panel,
-.step-log,
-.base-picker {
-  background: #131317;
-  border: 1px solid #26262a;
-  border-radius: 4px;
-  padding: 0.9rem;
+/* ---- stash (game-style tabs + slots) ----------------------------------- */
+.stash {
+  border: 1px solid #3a3226;
+  border-radius: 5px;
+  background:
+    radial-gradient(ellipse at top, #1c1712 0%, #12100c 60%, #0c0a08 100%);
+  box-shadow: 0 0 0 1px #000, 0 4px 18px #000a;
+  overflow: hidden;
 }
 
-.currency-panel h3,
-.step-log h3,
-.base-picker h3 {
-  margin: 0 0 0.7rem;
-  font-size: 0.8rem;
+.stash-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0.45rem 0.45rem 0;
+  background: linear-gradient(#08070550, #00000000), #171310;
+  border-bottom: 1px solid #3a3226;
+  flex-wrap: wrap;
+}
+
+.stash-tab {
+  border: 1px solid #3a3226;
+  border-bottom: none;
+  border-radius: 5px 5px 0 0;
+  background: linear-gradient(#241e16, #171310);
+  color: #9a8a68;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  padding: 0.3rem 0.65rem 0.25rem;
+  text-transform: uppercase;
+  position: relative;
+  top: 1px;
+}
+
+.stash-tab:hover {
+  color: #d8c69a;
+}
+
+.stash-tab-active {
+  background: linear-gradient(#3b3122, #241e16);
+  color: #e8d5a0;
+  border-color: #6a5a30;
+  box-shadow: 0 -2px 8px #d4b06022;
+}
+
+/* per-tab accent stripe, echoing the game's coloured tab labels */
+.stash-tab::before {
+  content: "";
+  position: absolute;
+  inset: 2px 4px auto;
+  height: 2px;
+  border-radius: 2px;
+  opacity: 0.75;
+}
+.stash-tab-currency::before { background: #d4b060; }
+.stash-tab-essences::before { background: #67c05a; }
+.stash-tab-omens::before { background: #58c0b6; }
+.stash-tab-breach::before { background: #b45ad0; }
+.stash-tab-delirium::before { background: #a8a8b8; }
+.stash-tab-verisium::before { background: #d06a3c; }
+
+.stash-body {
+  padding: 0.8rem;
+  max-height: 76vh;
+  overflow-y: auto;
+}
+
+.stash-section + .stash-section {
+  margin-top: 0.9rem;
+  border-top: 1px solid #2a2419;
+  padding-top: 0.7rem;
+}
+
+.stash-section h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #8a7a50;
 }
 
-.currency-grid {
+.slot-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  grid-template-columns: repeat(auto-fill, 46px);
   gap: 6px;
 }
 
-.currency {
-  aspect-ratio: 1;
+.slot {
+  width: 46px;
+  height: 46px;
   padding: 4px;
-  background: #0d0d10;
-  border: 1px solid #2c2c31;
-  border-radius: 4px;
-  display: flex;
+  border: 1px solid #3a3226;
+  border-radius: 6px;
+  background:
+    radial-gradient(circle at 50% 42%, #262019 0%, #14100c 75%, #0b0906 100%);
+  box-shadow: inset 0 2px 6px #000c, inset 0 -1px 0 #ffffff0a;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  cursor: pointer;
 }
 
-.currency img {
+.slot:hover {
+  border-color: #8a744a;
+}
+
+.slot img {
   max-width: 100%;
   max-height: 100%;
+  pointer-events: none;
 }
 
-.currency-selected {
+.slot-selected {
   border-color: #d4b060;
-  box-shadow: 0 0 8px #d4b06055;
+  box-shadow: inset 0 2px 6px #000c, 0 0 10px #d4b06066;
 }
 
-.currency-blocked img {
-  opacity: 0.3;
-  filter: grayscale(0.8);
+.slot-armed {
+  border-color: #58c0b6;
+  box-shadow: inset 0 2px 6px #000c, 0 0 10px #58c0b666;
 }
 
-.currency-hint {
-  margin: 0.7rem 0 0;
-  font-size: 0.75rem;
-  color: #999;
+.slot-pip {
+  position: absolute;
+  right: 3px;
+  top: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #58c0b6;
+  box-shadow: 0 0 5px #58c0b6;
 }
+
+.slot-blocked img {
+  opacity: 0.35;
+  filter: grayscale(0.85);
+}
+
+.slot-unusable {
+  cursor: default;
+}
+
+.slot-unusable img {
+  opacity: 0.18;
+  filter: grayscale(1);
+}
+
+.slot-unusable:hover {
+  border-color: #3a3226;
+}
+
+.slot-empty {
+  visibility: hidden;
+}
+
+/* essence tab: tier columns per essence type, like the game's essence tab */
+.essence-grid {
+  display: grid;
+  grid-template-columns: minmax(70px, auto) repeat(4, 46px);
+  gap: 4px 6px;
+  align-items: center;
+}
+
+.essence-head {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6d5f42;
+  text-align: center;
+}
+
+.essence-type {
+  font-size: 0.72rem;
+  color: #9a8a68;
+  text-align: right;
+  padding-right: 0.3rem;
+}
+
+.essence-cell {
+  display: inline-flex;
+}
+
+.stash-tooltip {
+  position: fixed;
+  z-index: 10;
+  max-width: 260px;
+  pointer-events: none;
+  background: #0b0a08f2;
+  border: 1px solid #6a5a30;
+  border-radius: 4px;
+  padding: 0.45rem 0.6rem;
+  box-shadow: 0 4px 14px #000c;
+}
+
+.tooltip-name {
+  color: #e8d5a0;
+  font-size: 0.85rem;
+}
+
+.tooltip-note {
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+}
+
+.tooltip-ok { color: #7d9c6a; }
+.tooltip-blocked { color: #c96a6a; }
+.tooltip-info { color: #999; }
 
 /* ---- item card (game tooltip style) ----------------------------------- */
 .item-area {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
   padding-top: 2rem;
 }
 
@@ -197,6 +350,38 @@ button.primary {
   color: #7f7f7f;
 }
 
+.item-stats {
+  list-style: none;
+  margin: 0;
+  padding: 0.45rem 1.4rem;
+  border-bottom: 1px solid #2a2a30;
+}
+
+.stat-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: #7f7f7f;
+}
+
+.stat-value {
+  color: #ddd;
+}
+
+.quality-line,
+.quality-line .stat-value {
+  color: #8888ff;
+}
+
+.item-reqs {
+  margin: 0;
+  padding: 0.35rem 1rem;
+  font-size: 0.75rem;
+  color: #7f7f7f;
+  border-bottom: 1px solid #2a2a30;
+}
+
 .mods {
   list-style: none;
   margin: 0;
@@ -215,6 +400,7 @@ button.primary {
 .mod.explicit { color: #8888ff; }
 .mod.implicit { color: #a0a0c0; font-style: italic; }
 .mod.fractured { color: #a29162; }
+.mod.boosted { text-shadow: 0 0 8px #8888ff66; }
 
 .mod-tag {
   font-size: 0.7rem;
@@ -235,9 +421,61 @@ button.primary {
   border-top: 1px solid #2a2a30;
 }
 
+.sanctified-line {
+  margin: 0;
+  padding: 0.4rem;
+  color: #e8d5a0;
+  border-top: 1px solid #2a2a30;
+}
+
+.armed-omens {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.armed-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #58c0b6;
+}
+
+.armed-omen {
+  width: 34px;
+  height: 34px;
+  padding: 2px;
+  border: 1px solid #58c0b6;
+  border-radius: 5px;
+  background: #0d1413;
+  box-shadow: 0 0 8px #58c0b644;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.armed-omen img {
+  max-width: 100%;
+  max-height: 100%;
+}
+
 /* ---- base picker ------------------------------------------------------ */
 .base-picker {
   min-width: 20rem;
+  background: #131317;
+  border: 1px solid #26262a;
+  border-radius: 4px;
+  padding: 0.9rem;
+}
+
+.base-picker h3 {
+  margin: 0 0 0.7rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8a7a50;
 }
 
 .base-picker label {
@@ -261,6 +499,21 @@ button.primary {
 }
 
 /* ---- step log ---------------------------------------------------------- */
+.step-log {
+  background: #131317;
+  border: 1px solid #26262a;
+  border-radius: 4px;
+  padding: 0.9rem;
+}
+
+.step-log h3 {
+  margin: 0 0 0.7rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8a7a50;
+}
+
 .step-log ol {
   margin: 0;
   padding-left: 1.4rem;
@@ -285,6 +538,12 @@ button.primary {
   height: 20px;
 }
 
+.step-omens {
+  padding-left: 1.6rem;
+  font-size: 0.72rem;
+  color: #58c0b6;
+}
+
 .step-log ul {
   list-style: none;
   margin: 0.15rem 0 0;
@@ -296,3 +555,6 @@ button.primary {
 .event-added { color: #7d9c6a; }
 .event-removed { color: #a05b5b; }
 .event-corrupted { color: #d20000; }
+.event-fractured { color: #a29162; }
+.event-sanctified { color: #e8d5a0; }
+.event-quality { color: #8888ff; }

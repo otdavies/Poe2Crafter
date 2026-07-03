@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import { currentItem, useApp } from "./state/store.ts";
 import { BasePicker } from "./ui/BasePicker.tsx";
-import { CurrencyPanel } from "./ui/CurrencyPanel.tsx";
 import { ItemCard } from "./ui/ItemCard.tsx";
+import { StashPanel } from "./ui/StashPanel.tsx";
 import { StepLog } from "./ui/StepLog.tsx";
 import "./App.css";
 
@@ -48,23 +48,46 @@ export default function App() {
       </header>
 
       <main className="bench-main">
-        <CurrencyPanel
+        <StashPanel
           data={app.data}
           currency={app.currency}
           item={item}
           selected={app.selectedCurrency}
+          armedOmens={app.armedOmens}
           onSelect={app.selectCurrency}
+          onToggleOmen={app.toggleOmen}
         />
 
         <section className="item-area">
           {!app.session && <BasePicker data={app.data} onStart={app.startCraft} />}
           {app.session && item && (
-            <ItemCard
-              data={app.data}
-              item={item}
-              active={Boolean(app.selectedCurrency)}
-              onClick={app.applySelected}
-            />
+            <>
+              <ItemCard
+                data={app.data}
+                item={item}
+                active={Boolean(app.selectedCurrency)}
+                onClick={app.applySelected}
+              />
+              {app.armedOmens.length > 0 && (
+                <div className="armed-omens">
+                  <span className="armed-label">Active omens</span>
+                  {app.armedOmens.map((id) => {
+                    const info = app.currency.find((c) => c.id === id);
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        className="armed-omen"
+                        title={`${info?.name ?? id} — click to disarm`}
+                        onClick={() => app.toggleOmen(id)}
+                      >
+                        {info ? <img src={info.icon} alt={info.name} /> : id}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </section>
 
