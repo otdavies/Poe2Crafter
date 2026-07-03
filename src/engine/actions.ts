@@ -26,6 +26,7 @@ import {
   type RolledMod,
 } from "./item.ts";
 import {
+  ALCHEMY_MOD_COUNT,
   ALLOYS,
   CATALYSTS,
   catalystQualityPerUse,
@@ -75,11 +76,31 @@ export interface CraftResult {
 }
 
 export type Omens = ReadonlySet<string>;
-const NO_OMENS: Omens = new Set();
+export const NO_OMENS: Omens = new Set();
+
+/** Mechanic family — the odds module dispatches on this. */
+export type ActionKind =
+  | "transmute"
+  | "augment"
+  | "alchemy"
+  | "regal"
+  | "exalt"
+  | "chaos"
+  | "annul"
+  | "divine"
+  | "vaal"
+  | "fracture"
+  | "essence"
+  | "alloy"
+  | "emotion"
+  | "catalyst";
 
 export interface CraftAction {
   /** trade API currency id, e.g. "chaos" — the key the UI dispatches on. */
   currencyId: string;
+  kind: ActionKind;
+  /** Greater/Perfect variants: minimum required mod level, if any. */
+  minModLevel?: number;
   /** Reason the action can't be used right now, or null if it can. */
   canApply(data: EngineData, item: Item, omens?: Omens): string | null;
   apply(data: EngineData, item: Item, rng: Rng, omens?: Omens): CraftResult;
@@ -93,8 +114,10 @@ const usable = (item: Item): string | null =>
       : null;
 
 // --- Omen plumbing -----------------------------------------------------------
+// The plan/pool helpers below are exported for the odds module: it derives
+// displayed probabilities from the exact plumbing apply() rolls against.
 
-type Generation = "prefix" | "suffix";
+export type Generation = "prefix" | "suffix";
 
 /** Resolve a Sinistral/Dextral omen pair to a side restriction. */
 function sideRestriction(
@@ -112,7 +135,7 @@ function sideRestriction(
   return { consumed: [] };
 }
 
-interface RemovalPlan {
+export interface RemovalPlan {
   candidates: RolledMod[];
   whittling: boolean;
   consumed: string[];
@@ -123,7 +146,7 @@ interface RemovalPlan {
  * Which mods a removing currency may hit, given armed omens (and, for
  * essence-like swaps, the affix side the guaranteed mod needs room on).
  */
-function planRemoval(
+export function planRemoval(
   data: EngineData,
   item: Item,
   omens: Omens,
@@ -168,21 +191,24 @@ function planRemoval(
   return { candidates, whittling, consumed, blocked };
 }
 
-/** Pick the removal target: random, or lowest required level (Whittling). */
+/** The mods a removal plan may actually hit (Whittling: lowest level only). */
+export function removalCandidates(data: EngineData, plan: RemovalPlan): RolledMod[] {
+  if (!plan.whittling || plan.candidates.length === 0) return plan.candidates;
+  const lowest = Math.min(...plan.candidates.map((m) => data.mod(m.modId).ilvl));
+  return plan.candidates.filter((m) => data.mod(m.modId).ilvl === lowest);
+}
+
+/** Pick the removal target: uniform over the plan's candidates. */
 function pickRemoval(data: EngineData, rng: Rng, plan: RemovalPlan): RolledMod {
-  let pool = plan.candidates;
-  if (plan.whittling) {
-    const lowest = Math.min(...pool.map((m) => data.mod(m.modId).ilvl));
-    pool = pool.filter((m) => data.mod(m.modId).ilvl === lowest);
-  }
+  const pool = removalCandidates(data, plan);
   return pool[rollInt(rng, 0, pool.length - 1)];
 }
 
-function withoutMod(item: Item, target: RolledMod): Item {
+export function withoutMod(item: Item, target: RolledMod): Item {
   return { ...item, explicits: item.explicits.filter((m) => m !== target) };
 }
 
-interface AdditionPlan {
+export interface AdditionPlan {
   generation?: Generation;
   homogenise: boolean;
   catalyse: boolean;
@@ -192,7 +218,7 @@ interface AdditionPlan {
 }
 
 /** Omens that shape what an Exalted/Regal Orb adds. */
-function planAddition(
+export function planAddition(
   item: Item,
   omens: Omens,
   action: "exalt" | "regal",
@@ -232,7 +258,7 @@ function planAddition(
 }
 
 /** The rollable pool an addition draws from, after omen shaping. */
-function additionPool(
+export function additionPool(
   data: EngineData,
   item: Item,
   plan: AdditionPlan,
@@ -307,7 +333,7 @@ function groupConflict(data: EngineData, item: Item, modId: string): string | nu
  * guaranteed mod's side is full (verified: a full side is guaranteed to lose
  * one of its mods, never the other side).
  */
-function requiredRemovalSide(
+export function requiredRemovalSide(
   data: EngineData,
   item: Item,
   modId: string,
@@ -324,6 +350,8 @@ function transmutation(tier: CurrencyTier, currencyId: string): CraftAction {
   const minModLevel = MIN_MOD_LEVEL[tier];
   return {
     currencyId,
+    kind: "transmute",
+    minModLevel: minModLevel || undefined,
     canApply: (data, item) =>
       usable(item) ??
       (item.rarity !== "normal" ? "Requires a Normal item" : null) ??
@@ -343,6 +371,8 @@ function augmentation(tier: CurrencyTier, currencyId: string): CraftAction {
   const minModLevel = MIN_MOD_LEVEL[tier];
   return {
     currencyId,
+    kind: "augment",
+    minModLevel: minModLevel || undefined,
     canApply: (data, item) =>
       usable(item) ??
       (item.rarity !== "magic" ? "Requires a Magic item" : null) ??
@@ -359,6 +389,8 @@ function regal(tier: CurrencyTier, currencyId: string): CraftAction {
   const minModLevel = MIN_MOD_LEVEL[tier];
   return {
     currencyId,
+    kind: "regal",
+    minModLevel: minModLevel || undefined,
     canApply: (data, item, omens = NO_OMENS) => {
       const blocked =
         usable(item) ?? (item.rarity !== "magic" ? "Requires a Magic item" : null);
@@ -396,6 +428,8 @@ function exalted(tier: CurrencyTier, currencyId: string): CraftAction {
   const filter = { minModLevel: minModLevel || undefined };
   return {
     currencyId,
+    kind: "exalt",
+    minModLevel: minModLevel || undefined,
     canApply: (data, item, omens = NO_OMENS) => {
       const blocked =
         usable(item) ?? (item.rarity !== "rare" ? "Requires a Rare item" : null);
@@ -441,6 +475,8 @@ function chaos(tier: CurrencyTier, currencyId: string): CraftAction {
   const minModLevel = MIN_MOD_LEVEL[tier];
   return {
     currencyId,
+    kind: "chaos",
+    minModLevel: minModLevel || undefined,
     canApply: (data, item, omens = NO_OMENS) =>
       usable(item) ??
       (item.rarity !== "rare" ? "Requires a Rare item" : null) ??
@@ -463,13 +499,14 @@ function chaos(tier: CurrencyTier, currencyId: string): CraftAction {
 
 const alchemy: CraftAction = {
   currencyId: "alch",
+  kind: "alchemy",
   canApply: (_data, item) =>
     usable(item) ?? (item.rarity !== "normal" ? "Requires a Normal item" : null),
   apply(data, item, rng) {
     let current: Item = { ...item, rarity: "rare" };
     const events: CraftEvent[] = [{ kind: "rarity", to: "rare" }];
     // "Upgrades a Normal item to a Rare item with 4 modifiers"
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < ALCHEMY_MOD_COUNT; i++) {
       if (rollablePool(data, current, {}).length === 0) break;
       const added = addRandomMod(data, current, rng, {});
       current = added.item;
@@ -481,6 +518,7 @@ const alchemy: CraftAction = {
 
 const annulment: CraftAction = {
   currencyId: "annul",
+  kind: "annul",
   canApply: (data, item, omens = NO_OMENS) =>
     usable(item) ??
     (item.rarity === "normal" ? "Requires a Magic or Rare item" : null) ??
@@ -498,6 +536,7 @@ const annulment: CraftAction = {
 
 const divine: CraftAction = {
   currencyId: "divine",
+  kind: "divine",
   canApply: (_data, item, omens = NO_OMENS) =>
     usable(item) ??
     (item.explicits.length + item.implicits.length === 0 ? "No modifiers to reroll" : null) ??
@@ -540,6 +579,7 @@ const divine: CraftAction = {
 
 const vaal: CraftAction = {
   currencyId: "vaal",
+  kind: "vaal",
   canApply: (_data, item) => usable(item),
   apply(data, item, rng) {
     const outcome = VAAL_OUTCOMES[pickWeighted(rng, VAAL_OUTCOMES.map((o) => o.weight))];
@@ -611,6 +651,7 @@ const vaal: CraftAction = {
 
 const fracturing: CraftAction = {
   currencyId: "fracturing-orb",
+  kind: "fracture",
   canApply: (_data, item) =>
     usable(item) ??
     (item.rarity !== "rare" ? "Requires a Rare item" : null) ??
@@ -633,6 +674,7 @@ function essenceAction(currencyId: string, essence: Essence): CraftAction {
   const tier = essenceTier(essence.name);
   return {
     currencyId,
+    kind: "essence",
     canApply(data, item, omens = NO_OMENS) {
       const blocked = usable(item);
       if (blocked) return blocked;
@@ -670,7 +712,7 @@ function essenceAction(currencyId: string, essence: Essence): CraftAction {
 }
 
 /** Highest alloy mod tier the item's level allows. */
-function alloyModId(data: EngineData, item: Item, spec: AlloySpec): string | undefined {
+export function alloyModId(data: EngineData, item: Item, spec: AlloySpec): string | undefined {
   const mods = spec[data.base(item.baseId).itemClass];
   if (!mods) return undefined;
   const allowed = mods.filter((id) => data.mod(id).ilvl <= item.ilvl);
@@ -681,6 +723,7 @@ function alloyModId(data: EngineData, item: Item, spec: AlloySpec): string | und
 function alloyAction(currencyId: string, spec: AlloySpec): CraftAction {
   return {
     currencyId,
+    kind: "alloy",
     canApply(data, item, omens = NO_OMENS) {
       const blocked =
         usable(item) ?? (item.rarity !== "rare" ? "Requires a Rare item" : null);
@@ -709,7 +752,7 @@ function alloyAction(currencyId: string, spec: AlloySpec): CraftAction {
 }
 
 /** The emotion's craftable (generation, mod) options for this jewel. */
-function emotionOptions(
+export function emotionOptions(
   data: EngineData,
   emotion: DistilledEmotion,
   item: Item,
@@ -733,10 +776,28 @@ function emotionOptions(
   return leveled;
 }
 
+/** The emotion choices apply() may pick from (group free, removal unblocked). */
+export function validEmotionChoices(
+  data: EngineData,
+  item: Item,
+  emotion: DistilledEmotion,
+  omens: Omens,
+): { generation: Generation; modId: string }[] {
+  const options = emotionOptions(data, emotion, item);
+  if (typeof options === "string") return [];
+  return options.filter(
+    (o) =>
+      groupConflict(data, item, o.modId) === null &&
+      planRemoval(data, item, omens, "essence", requiredRemovalSide(data, item, o.modId))
+        .blocked === null,
+  );
+}
+
 /** Liquid Emotions on jewels: swap a random mod for the emotion's mod. */
 function emotionAction(currencyId: string, emotion: DistilledEmotion): CraftAction {
   return {
     currencyId,
+    kind: "emotion",
     canApply(data, item, omens = NO_OMENS) {
       const blocked =
         usable(item) ?? (item.rarity !== "rare" ? "Requires a Rare Jewel" : null);
@@ -753,16 +814,7 @@ function emotionAction(currencyId: string, emotion: DistilledEmotion): CraftActi
       return reasons.every((r) => r !== null) ? reasons[0] : null;
     },
     apply(data, item, rng, omens = NO_OMENS) {
-      const options = emotionOptions(data, emotion, item) as {
-        generation: Generation;
-        modId: string;
-      }[];
-      const valid = options.filter(
-        (o) =>
-          groupConflict(data, item, o.modId) === null &&
-          planRemoval(data, item, omens, "essence", requiredRemovalSide(data, item, o.modId))
-            .blocked === null,
-      );
+      const valid = validEmotionChoices(data, item, emotion, omens);
       const choice = valid[rollInt(rng, 0, valid.length - 1)];
       const plan = planRemoval(
         data,
@@ -786,6 +838,7 @@ function emotionAction(currencyId: string, emotion: DistilledEmotion): CraftActi
 function catalystAction(currencyId: string, spec: CatalystSpec): CraftAction {
   return {
     currencyId,
+    kind: "catalyst",
     canApply(data, item) {
       const blocked = usable(item);
       if (blocked) return blocked;
