@@ -6,7 +6,7 @@ import { renderModText } from "./modtext.ts";
 
 function modLine(data: EngineData, rolled: RolledMod): string {
   const mod = data.mod(rolled.modId);
-  const text = renderModText(mod.text, rolled.values);
+  const text = renderModText(mod.text, rolled.values, mod.stats);
   return mod.name ? `${mod.name} — ${text}` : text;
 }
 

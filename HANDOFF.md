@@ -123,12 +123,10 @@ Engine essentials:
 
 ## Known issues / open verifications
 
-- **Stat-scaling display bug (pre-phase-4)**: some datamined stats are stored
-  in different units than their text implies — e.g. life regen is per-minute
-  but the text says "per second", so a roll renders as "1992 Life
-  Regeneration per second" (should be ~33). Needs a hand-encoded stat-scale
-  table (÷60 for `*_per_minute`, ÷100 for permyriad-style stats) applied in
-  `renderModText`/stat rendering. Do this early in phase 5/6.
+- ~~Stat-scaling display bug~~ fixed: `renderModText` linearly remaps rolled
+  values from the stat range onto the text's display range (handles
+  per-minute, permyriad, ×100 crit, negated "reduced" stats without unit
+  tables). Odds/tooltip code in phase 5 should reuse it.
 - ItemCard shows **base** defence numbers only — mods (e.g. "42% increased
   Armour") are not folded in yet (phase 6 "computed defences").
 - `TODO(0.5-verify)` markers in mechanics.ts: Greater/Perfect min mod level
@@ -144,7 +142,8 @@ Engine essentials:
 ## Verification bar (keep it)
 
 Every phase so far shipped with: unit/property/golden tests on the engine
-(71 passing — omen interaction order, essence family, catalysts, jewels),
+(76 passing — omen interaction order, essence family, catalysts, jewels,
+display-unit remapping),
 statistical distribution tests where randomness matters, and for pool
 correctness the Craft of Exile oracle (16 item classes, zero unexplained
 differences). Phase 5's odds panel should get property tests asserting

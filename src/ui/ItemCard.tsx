@@ -15,7 +15,7 @@ function ModLine({ data, item, rolled, kind }: {
   const boosted = values !== rolled.values;
   return (
     <li className={`mod ${kind} ${rolled.fractured ? "fractured" : ""} ${boosted ? "boosted" : ""}`}>
-      {renderModText(mod.text, values)}
+      {renderModText(mod.text, values, mod.stats)}
       {rolled.fractured && <span className="mod-tag"> (fractured)</span>}
     </li>
   );

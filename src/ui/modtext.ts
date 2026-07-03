@@ -2,14 +2,71 @@
  * Render a mod's bundled text ("+(10-19) to maximum Life") with its rolled
  * values ("+14 to maximum Life"). Range groups appear in stat order, so the
  * i-th "(min-max)" is replaced by values[i].
+ *
+ * Datamined stat values are often stored in different units than the
+ * display text (life regen per MINUTE vs "per second" text, leech in
+ * permyriad, "reduced" stats as negatives, crit chance in 1/100 %). The
+ * pre-rendered text ranges carry the display units, so when the text has
+ * one range per stat we linearly remap the rolled value from the stat range
+ * onto the text range instead of hand-encoding unit tables.
  */
-const RANGE = /\((\d+(?:\.\d+)?)[–-](\d+(?:\.\d+)?)\)/;
+import type { ModStat } from "../data/schema.ts";
 
-export function renderModText(text: string, values: number[]): string {
+const RANGE = /\((\d+(?:\.\d+)?)[–-](\d+(?:\.\d+)?)\)/;
+const RANGE_ALL = new RegExp(RANGE.source, "g");
+
+const decimalsOf = (raw: string): number => raw.split(".")[1]?.length ?? 0;
+
+function formatValue(value: number, decimals: number): string {
+  const rounded = value.toFixed(Math.min(Math.max(decimals, value % 1 === 0 ? 0 : 2), 2));
+  return String(Number(rounded));
+}
+
+/** Remap a rolled value from its stat range onto the text's display range. */
+function displayValue(
+  value: number,
+  stat: ModStat | undefined,
+  tminRaw: string,
+  tmaxRaw: string,
+): string {
+  const decimals = Math.max(decimalsOf(tminRaw), decimalsOf(tmaxRaw));
+  const tmin = Number(tminRaw);
+  const tmax = Number(tmaxRaw);
+  if (!stat || stat.max === stat.min) return formatValue(value, decimals);
+  const span = (value - stat.min) / (stat.max - stat.min);
+  // "reduced" stats are stored negative but displayed positive: the largest
+  // magnitude (stat min) is the largest displayed number.
+  const reversed = stat.min + stat.max < 0 && tmin >= 0;
+  const display = reversed ? tmax - span * (tmax - tmin) : tmin + span * (tmax - tmin);
+  return formatValue(display, decimals);
+}
+
+export function renderModText(text: string, values: number[], stats?: ModStat[]): string {
+  const rangeCount = [...text.matchAll(RANGE_ALL)].length;
+  // Unit remapping needs one text range per stat; otherwise pair each range
+  // with the first unused stat sharing its exact bounds (same units).
+  const indexPaired = stats !== undefined && rangeCount === stats.length;
+  const used = new Set<number>();
   let out = text;
-  for (const value of values) {
-    if (!RANGE.test(out)) break;
-    out = out.replace(RANGE, String(value));
+  for (let i = 0; i < rangeCount; i++) {
+    const match = RANGE.exec(out);
+    if (!match) break;
+    let rendered: string | undefined;
+    if (indexPaired && i < values.length) {
+      rendered = displayValue(values[i], stats[i], match[1], match[2]);
+    } else if (stats) {
+      const j = stats.findIndex(
+        (s, k) =>
+          !used.has(k) && s.min === Number(match[1]) && s.max === Number(match[2]),
+      );
+      if (j >= 0 && j < values.length) {
+        used.add(j);
+        rendered = String(values[j]);
+      }
+    }
+    rendered ??= i < values.length ? String(values[i]) : undefined;
+    if (rendered === undefined) break;
+    out = out.replace(RANGE, rendered);
   }
   return out;
 }
