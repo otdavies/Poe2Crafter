@@ -36,5 +36,13 @@ export function describeEvent(data: EngineData, event: CraftEvent): string {
       return "Corrupted";
     case "no_change":
       return "No change";
+    case "socket_added":
+      return "+ Rune Socket";
+    case "socketed": {
+      const name = data.rune(event.runeId).name;
+      return event.replaced
+        ? `Socket ${event.index + 1}: ${name} (destroyed ${data.rune(event.replaced).name})`
+        : `Socket ${event.index + 1}: ${name}`;
+    }
   }
 }

@@ -8,8 +8,10 @@ import type {
   CurrencyItem,
   DistilledEmotion,
   Essence,
+  Rune,
 } from "../data/schema.ts";
-import { actionFor, type CraftEvent } from "../engine/actions.ts";
+import { actionFor, applyRune, type CraftEvent } from "../engine/actions.ts";
+import { canSocketRune } from "../engine/runes.ts";
 import { EngineData } from "../engine/data.ts";
 import {
   commitDesecration,
@@ -17,7 +19,7 @@ import {
   rerollReveal,
   type DesecrationReveal,
 } from "../engine/desecrate.ts";
-import { createItem, type Item } from "../engine/item.ts";
+import type { Item } from "../engine/item.ts";
 import { BONES, OMEN } from "../engine/mechanics.ts";
 import { liveRng } from "../engine/rng.ts";
 import { decodeSession, encodedFromHash } from "./share.ts";
@@ -60,10 +62,12 @@ interface AppState {
   pendingReveal?: { currencyId: string; reveal: DesecrationReveal };
 
   init(): Promise<void>;
-  startCraft(baseId: string, ilvl: number): void;
+  /** Start a session on an already-built item (the picker's live preview). */
+  startCraft(item: Item): void;
   selectCurrency(id: string | undefined): void;
   toggleOmen(id: string): void;
-  applySelected(): void;
+  /** socketIndex: rune applications may target a specific clicked socket. */
+  applySelected(socketIndex?: number): void;
   chooseReveal(choice: number): void;
   rerollPendingReveal(): void;
   undo(): void;
@@ -95,15 +99,16 @@ export const useApp = create<AppState>((set, get) => ({
 
   async init() {
     try {
-      const [meta, mods, bases, currency, essences, emotions] = await Promise.all([
+      const [meta, mods, bases, currency, essences, emotions, runes] = await Promise.all([
         fetchJson<BundleMeta>("meta.json"),
         fetchJson<never[]>("mods.json"),
         fetchJson<never[]>("bases.json"),
         fetchJson<CurrencyItem[]>("currency.json"),
         fetchJson<Essence[]>("essences.json"),
         fetchJson<DistilledEmotion[]>("emotions.json"),
+        fetchJson<Rune[]>("runes.json"),
       ]);
-      const data = new EngineData(mods, bases, essences, emotions);
+      const data = new EngineData(mods, bases, essences, emotions, runes);
       // A share link opens straight into tutorial mode.
       const encoded = encodedFromHash(window.location.hash);
       const shared = encoded ? decodeSession(data, encoded) : undefined;
@@ -119,10 +124,9 @@ export const useApp = create<AppState>((set, get) => ({
     }
   },
 
-  startCraft(baseId, ilvl) {
-    const { data } = get();
-    if (!data) return;
-    set({ session: { initial: createItem(data, baseId, ilvl, liveRng), steps: [] } });
+  startCraft(item) {
+    if (!get().data) return;
+    set({ session: { initial: item, steps: [] } });
   },
 
   selectCurrency(id) {
@@ -138,7 +142,7 @@ export const useApp = create<AppState>((set, get) => ({
     });
   },
 
-  applySelected() {
+  applySelected(socketIndex) {
     const { data, session, selectedCurrency, armedOmens, replayIndex, pendingReveal } = get();
     if (!data || !session || !selectedCurrency || replayIndex !== undefined) return;
     if (pendingReveal) return; // a Well of Souls choice is open
@@ -146,7 +150,13 @@ export const useApp = create<AppState>((set, get) => ({
     if (!action) return;
     const item = currentItem(session);
     const omens = new Set(armedOmens);
-    if (action.canApply(data, item, omens) !== null) return;
+    // Runes may target the exact socket the player clicked.
+    const rune = data.runeById.get(selectedCurrency);
+    if (rune && socketIndex !== undefined) {
+      if (canSocketRune(data, item, rune, socketIndex) !== null) return;
+    } else if (action.canApply(data, item, omens) !== null) {
+      return;
+    }
     // Bones open the Well of Souls choice instead of resolving immediately
     // (Putrefaction skips the reveal — everything is replaced at once).
     if (action.kind === "desecrate" && !omens.has(OMEN.putrefaction)) {
@@ -157,7 +167,10 @@ export const useApp = create<AppState>((set, get) => ({
       });
       return;
     }
-    const result = action.apply(data, item, liveRng, omens);
+    const result =
+      rune && socketIndex !== undefined
+        ? applyRune(data, item, rune, socketIndex)
+        : action.apply(data, item, liveRng, omens);
     const consumed = result.consumedOmens ?? [];
     set({
       session: {

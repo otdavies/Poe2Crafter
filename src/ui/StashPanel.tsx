@@ -11,18 +11,66 @@ import { tradeSlug, type EngineData } from "../engine/data.ts";
 import type { Item } from "../engine/item.ts";
 import { ALLOYS, BONES, CATALYSTS, CORRUPTED_ESSENCES, OMEN } from "../engine/mechanics.ts";
 
-const TABS = ["Currency", "Essences", "Omens", "Abyss", "Breach", "Delirium", "Verisium"] as const;
+const TABS = ["Currency", "Essences", "Runes", "Omens", "Abyss", "Breach", "Delirium", "Verisium"] as const;
 type TabId = (typeof TABS)[number];
 
 /** The stash tab a currency id lives in (tutorial mode jumps to it). */
 function tabForCurrency(data: EngineData, id: string): TabId {
   if (data.essenceByCurrencyId.has(id)) return "Essences";
   if (data.emotionByCurrencyId.has(id)) return "Delirium";
+  if (data.runeById.has(id)) return "Runes";
   if (CATALYSTS.has(id)) return "Breach";
   if (ALLOYS.has(id)) return "Verisium";
   if (BONES.has(id) || id === "preserved-vertebrae") return "Abyss";
   if (id.startsWith("omen-")) return "Omens";
   return "Currency";
+}
+
+/** The 15 standard rune kinds, in the game tab's order; 4 tiers each. */
+const RUNE_KINDS = [
+  "Desert", "Glacial", "Storm", "Iron", "Body", "Mind", "Rebirth",
+  "Inspiration", "Stone", "Vision", "Robust", "Adept", "Resolve",
+  "Ward", "Charging",
+] as const;
+const RUNE_TIERS = ["Lesser", "", "Greater", "Perfect"] as const;
+const STANDARD_RUNE = new RegExp(
+  `^(Lesser |Greater |Perfect )?(${RUNE_KINDS.join("|")}) Rune$`,
+);
+
+interface RuneGroups {
+  /** kind -> currency id per tier column (Lesser/base/Greater/Perfect). */
+  grid: [kind: string, row: (string | undefined)[]][];
+  runecrafted: string[];
+  warding: string[];
+  ancient: string[];
+  fabled: string[];
+  legacy: string[];
+}
+
+function groupRunes(currency: CurrencyItem[]): RuneGroups {
+  const grid = new Map<string, (string | undefined)[]>(RUNE_KINDS.map((k) => [k, []]));
+  const groups: RuneGroups = {
+    grid: [],
+    runecrafted: [],
+    warding: [],
+    ancient: [],
+    fabled: [],
+    legacy: [],
+  };
+  for (const c of currency) {
+    if (c.category !== "Runes") continue;
+    const standard = STANDARD_RUNE.exec(c.name);
+    if (standard) {
+      const tier = standard[1]?.trim() ?? "";
+      grid.get(standard[2])![RUNE_TIERS.indexOf(tier as (typeof RUNE_TIERS)[number])] = c.id;
+    } else if (c.name.startsWith("Legacy of ")) groups.legacy.push(c.id);
+    else if (c.name.startsWith("Warding Rune")) groups.warding.push(c.id);
+    else if (c.name.startsWith("Ancient Rune")) groups.ancient.push(c.id);
+    else if (/^(Lesser |Greater |Perfect )?Rune of /.test(c.name)) groups.runecrafted.push(c.id);
+    else groups.fabled.push(c.id);
+  }
+  groups.grid = [...grid.entries()];
+  return groups;
 }
 
 /** Abyssal bones by quality tier (Preserved Vertebrae = waystones, dimmed). */
@@ -45,7 +93,7 @@ const CURRENCY_SECTIONS: { title: string; ids: string[] }[] = [
     title: "Orbs of Enhancement",
     ids: [
       "transmute", "aug", "alch", "regal", "exalted", "chaos",
-      "annul", "divine", "vaal", "fracturing-orb",
+      "annul", "divine", "vaal", "fracturing-orb", "artificers",
     ],
   },
   {
@@ -253,6 +301,8 @@ export function StashPanel({
     [currency],
   );
 
+  const runeGroups = useMemo(() => groupRunes(currency), [currency]);
+
   return (
     <section className="stash">
       <div className="stash-tabs" role="tablist">
@@ -297,6 +347,42 @@ export function StashPanel({
               <div className="slot-grid">
                 {essenceRows.corrupted.map((e) => slot(tradeSlug(e.name)))}
               </div>
+            </div>
+          </>
+        )}
+
+        {tab === "Runes" && (
+          <>
+            <div className="stash-section">
+              <div className="essence-grid">
+                <span className="essence-head" />
+                {RUNE_TIERS.map((t, i) => (
+                  <span key={i} className="essence-head">{t || "Rune"}</span>
+                ))}
+                {runeGroups.grid.map(([kind, row]) => (
+                  <RuneRow key={kind} kind={kind} row={row} slot={slot} />
+                ))}
+              </div>
+            </div>
+            <div className="stash-section">
+              <h4>Runecrafted</h4>
+              <div className="slot-grid">{runeGroups.runecrafted.map((id) => slot(id))}</div>
+            </div>
+            <div className="stash-section">
+              <h4>Warding runes</h4>
+              <div className="slot-grid">{runeGroups.warding.map((id) => slot(id))}</div>
+            </div>
+            <div className="stash-section">
+              <h4>Ancient runes — limit 1 per item</h4>
+              <div className="slot-grid">{runeGroups.ancient.map((id) => slot(id))}</div>
+            </div>
+            <div className="stash-section">
+              <h4>Fabled &amp; Aldur runes</h4>
+              <div className="slot-grid">{runeGroups.fabled.map((id) => slot(id))}</div>
+            </div>
+            <div className="stash-section">
+              <h4>Aldur's Legacy — limit 1 per item</h4>
+              <div className="slot-grid">{runeGroups.legacy.map((id) => slot(id))}</div>
             </div>
           </>
         )}
@@ -372,6 +458,23 @@ export function StashPanel({
         </div>
       )}
     </section>
+  );
+}
+
+function RuneRow({ kind, row, slot }: {
+  kind: string;
+  row: (string | undefined)[];
+  slot: (id: string) => React.ReactNode;
+}) {
+  return (
+    <>
+      <span className="essence-type">{kind}</span>
+      {RUNE_TIERS.map((_, i) => (
+        <span key={i} className="essence-cell">
+          {row[i] ? slot(row[i]!) : <span className="slot slot-empty" />}
+        </span>
+      ))}
+    </>
   );
 }
 

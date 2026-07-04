@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { sessionHash } from "./state/share.ts";
 import { currentItem, itemAt, useApp } from "./state/store.ts";
 import { BasePicker } from "./ui/BasePicker.tsx";
@@ -20,6 +20,10 @@ export default function App() {
   const [altHeld, setAltHeld] = useState(false);
   const [advancedPinned, setAdvancedPinned] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const runeIcons = useMemo(
+    () => new Map(app.currency.filter((c) => c.category === "Runes").map((c) => [c.id, c.icon])),
+    [app.currency],
+  );
 
   useEffect(() => {
     void useApp.getState().init();
@@ -178,8 +182,14 @@ export default function App() {
                 data={app.data}
                 item={item}
                 active={!replaying && Boolean(app.selectedCurrency)}
-                onClick={app.applySelected}
+                onClick={() => app.applySelected()}
                 advanced={altHeld || advancedPinned}
+                runeIcons={runeIcons}
+                onSocketClick={
+                  !replaying && app.selectedCurrency && app.data.runeById.has(app.selectedCurrency)
+                    ? (i) => app.applySelected(i)
+                    : undefined
+                }
               />
               {!replaying && app.armedOmens.length > 0 && (
                 <div className="armed-omens">

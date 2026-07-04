@@ -148,6 +148,7 @@ button.primary {
 .stash-tab-currency::before { background: #d4b060; }
 .stash-tab-essences::before { background: #67c05a; }
 .stash-tab-omens::before { background: #58c0b6; }
+.stash-tab-runes::before { background: #7ab8d4; }
 .stash-tab-abyss::before { background: #4a7d3f; }
 .stash-tab-breach::before { background: #b45ad0; }
 .stash-tab-delirium::before { background: #a8a8b8; }
@@ -446,12 +447,14 @@ button.primary {
 .mod.explicit,
 .mod.implicit { color: #8888ff; }
 .mod.enchant { color: #b4b4ff; }
+/* socketed rune effects: the game's mod blue, marked with a (rune) tag */
+.mod.rune { color: #8888ff; }
 /* desecrated modifiers render in the game's abyssal green */
 .mod.desecrated { color: #7cb376; }
 .mod.fractured { color: #a29162; }
 .mod.boosted { text-shadow: 0 0 8px #8888ff66; }
 
-/* tier chip on the left edge of each affix (PoE2: higher tier = better) */
+/* tier chip on the left edge of each affix (T1 = strongest) */
 .mod {
   position: relative;
   /* symmetric gutters so centred text never runs under the chip */
@@ -602,6 +605,49 @@ button.primary {
   color: #a29162;
 }
 
+/* rune socket circles, like the sockets drawn on the item art in game */
+.item-sockets {
+  display: flex;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 0.15rem 0;
+}
+
+.socket {
+  width: 34px;
+  height: 34px;
+  padding: 2px;
+  border-radius: 50%;
+  border: 2px solid #55504a;
+  background: radial-gradient(circle at 40% 35%, #23211e, #121110);
+  box-shadow: inset 0 0 6px #000;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.socket img {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.socket:disabled {
+  cursor: default;
+  /* let clicks fall through to the item card (e.g. applying an orb) */
+  pointer-events: none;
+}
+
+.socket-clickable {
+  cursor: pointer;
+  border-color: #7ab8d4;
+  box-shadow: inset 0 0 6px #000, 0 0 8px #7ab8d466;
+}
+
+.socket-clickable:hover {
+  border-color: #b5e2f5;
+  box-shadow: inset 0 0 6px #000, 0 0 12px #7ab8d4aa;
+}
+
 .corrupted-line {
   margin: 0;
   color: #d20000;
@@ -652,6 +698,28 @@ button.toggled {
 }
 
 /* ---- base picker ------------------------------------------------------ */
+.base-picker-row {
+  display: flex;
+  gap: 1.4rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.base-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 20rem;
+  max-width: 26rem;
+}
+
+.base-preview-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8a7a50;
+}
+
 .base-picker {
   min-width: 20rem;
   background: #131317;

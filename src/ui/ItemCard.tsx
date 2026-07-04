@@ -11,6 +11,7 @@ import type { BaseItem, BaseProperties, Mod } from "../data/schema.ts";
 import type { EngineData } from "../engine/data.ts";
 import { computedProperties } from "../engine/defences.ts";
 import { effectiveValues, maxQuality, qualityTag, type Item, type RolledMod } from "../engine/item.ts";
+import { runeEffectFor, socketedRunes } from "../engine/runes.ts";
 import { modTier } from "../engine/tiers.ts";
 import { itemHeader } from "./itemname.ts";
 import { renderModText, renderModTextRanges } from "./modtext.ts";
@@ -64,7 +65,7 @@ function withDimmedRanges(text: string): ReactNode {
   );
 }
 
-/** Always-visible tier chip on the left of an affix. PoE2: higher = better. */
+/** Always-visible tier chip on the left of an affix. T1 = best (0.5). */
 function TierBadge({ data, item, modId }: { data: EngineData; item: Item; modId: string }) {
   if (data.mod(modId).desecrated) {
     return (
@@ -79,11 +80,11 @@ function TierBadge({ data, item, modId }: { data: EngineData; item: Item; modId:
   const tier = modTier(data, item, modId);
   if (!tier) return null;
   const grade =
-    tier.tier === tier.count ? "tier-top" : tier.tier / tier.count >= 0.75 ? "tier-high" : "";
+    tier.tier === 1 ? "tier-top" : (tier.tier - 1) / tier.count <= 0.25 ? "tier-high" : "";
   return (
     <span
       className={`tier-badge ${grade}`}
-      title={`Tier ${tier.tier} of ${tier.count} — PoE2 tiers count up, higher is better`}
+      title={`Tier ${tier.tier} of ${tier.count} — Tier 1 is the strongest`}
     >
       T{tier.tier}
     </span>
@@ -169,12 +170,82 @@ function requirementsLine(base: BaseItem): string | undefined {
   return parts.length > 0 ? `Requires: ${parts.join(", ")}` : undefined;
 }
 
-export function ItemCard({ data, item, onClick, active, advanced = false }: {
+/** Socket circles like the item art in game; click one to socket into it. */
+function SocketBar({ data, item, runeIcons, onSocketClick }: {
+  data: EngineData;
+  item: Item;
+  runeIcons?: ReadonlyMap<string, string>;
+  onSocketClick?: (index: number) => void;
+}) {
+  return (
+    <div className="item-sockets">
+      {(item.sockets ?? []).map((runeId, i) => {
+        const name = runeId ? data.rune(runeId).name : "Empty Rune Socket";
+        const icon = runeId ? runeIcons?.get(runeId) : undefined;
+        return (
+          <button
+            key={i}
+            type="button"
+            className={`socket ${runeId ? "socket-filled" : "socket-empty"} ${
+              onSocketClick ? "socket-clickable" : ""
+            }`}
+            title={onSocketClick ? `${name} — click to socket here` : name}
+            disabled={!onSocketClick}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSocketClick?.(i);
+            }}
+          >
+            {icon && <img src={icon} alt={name} draggable={false} />}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Effect lines of the socketed runes, styled like the game's rune mods. */
+function RuneLines({ data, item, advanced }: {
+  data: EngineData;
+  item: Item;
+  advanced: boolean;
+}) {
+  return (
+    <ul className="mods mods-rune">
+      {socketedRunes(data, item).flatMap((rune, r) => {
+        const effect = runeEffectFor(data, item, rune);
+        return (effect?.text ?? []).map((line, i) => (
+          <li key={`${r}-${i}`} className="mod rune">
+            {advanced && <span className="mod-info">Rune Modifier — {rune.name}</span>}
+            <span className="mod-text">
+              {line}
+              <span className="mod-tag"> (rune)</span>
+            </span>
+          </li>
+        ));
+      })}
+    </ul>
+  );
+}
+
+export function ItemCard({
+  data,
+  item,
+  onClick,
+  active,
+  advanced = false,
+  runeIcons,
+  onSocketClick,
+}: {
   data: EngineData;
   item: Item;
   onClick?: () => void;
   active?: boolean;
   advanced?: boolean;
+  /** Rune currency id -> icon URL, for filled socket circles. */
+  runeIcons?: ReadonlyMap<string, string>;
+  /** Live crafting: clicking a socket applies the held rune to it. */
+  onSocketClick?: (index: number) => void;
 }) {
   const base = data.base(item.baseId);
   const header = itemHeader(data, item);
@@ -224,6 +295,17 @@ export function ItemCard({ data, item, onClick, active, advanced = false }: {
       </ul>,
     );
   }
+  if ((item.sockets?.length ?? 0) > 0) {
+    sections.push(
+      <SocketBar
+        key="sockets"
+        data={data}
+        item={item}
+        runeIcons={runeIcons}
+        onSocketClick={onSocketClick}
+      />,
+    );
+  }
   if (requirements) sections.push(<p className="item-reqs" key="reqs">{requirements}</p>);
   if (advanced) {
     sections.push(
@@ -234,6 +316,9 @@ export function ItemCard({ data, item, onClick, active, advanced = false }: {
   }
   if (enchants.length > 0) sections.push(<Fragment key="enchants">{modList(enchants, "enchant")}</Fragment>);
   if (implicits.length > 0) sections.push(<Fragment key="implicits">{modList(implicits, "implicit")}</Fragment>);
+  if ((item.sockets ?? []).some((s) => s !== null)) {
+    sections.push(<RuneLines key="runes" data={data} item={item} advanced={advanced} />);
+  }
   if (item.explicits.length > 0) {
     sections.push(<Fragment key="explicits">{modList(item.explicits, "explicit")}</Fragment>);
   }
