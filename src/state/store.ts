@@ -1,9 +1,13 @@
 /**
- * App state: loaded game data + crafted items living in game-shaped
- * containers (character inventory 12×5, stash items tab 12×12, equipment
- * doll). Interaction mimics the game: click an item to pick it up onto the
- * cursor, click a cell to put it down, click with a held currency to craft.
- * The engine stays pure — this store is the only place that mutates.
+ * App state: loaded game data + everything that lives in the game-shaped
+ * containers — crafted items AND currency stacks (currencies are ordinary
+ * 1×1 stackable items in the game). Containers: character inventory 12×5,
+ * stash items tab 12×12, the currency tab's central crafting slot and its
+ * 14 wildcard slots, and the equipment doll. Interaction mimics the game:
+ * left-click picks things up onto the cursor, click a cell puts them down
+ * (stacks merge onto same-currency stacks), right-click a currency to use
+ * it, then click the item to craft. The engine stays pure — this store is
+ * the only place that mutates.
  */
 import { create } from "zustand";
 import type {
@@ -53,7 +57,11 @@ export interface Session {
   steps: CraftStep[];
 }
 
-export type Container = "inventory" | "stash";
+/**
+ * "curtab" is the currency tab's central crafting slot (one item of any
+ * size); "curwild" its 14 wildcard slots (stackables only, 7×2).
+ */
+export type Container = "inventory" | "stash" | "curtab" | "curwild";
 
 export interface Placement {
   container: Container;
@@ -61,18 +69,33 @@ export interface Placement {
   y: number;
 }
 
-/** One crafted item and where it currently sits. */
-export interface Craft {
+interface Placed {
   key: number;
-  session: Session;
   /** Grid placement; unset while on the cursor or equipped. */
   place?: Placement;
   equipped?: EquipSlot;
 }
 
+/** One crafted item and where it currently sits. */
+export interface Craft extends Placed {
+  session: Session;
+}
+
+/** A stack of currency — an ordinary 1×1 stackable item, like the game. */
+export interface Stack extends Placed {
+  currencyId: string;
+  count: number;
+}
+
+export type StashObject = Craft | Stack;
+
+export const isCraft = (o: StashObject): o is Craft => "session" in o;
+
 export const GRIDS: Record<Container, GridSize> = {
   inventory: INVENTORY_GRID,
   stash: STASH_GRID,
+  curtab: { cols: 2, rows: 4 },
+  curwild: { cols: 7, rows: 2 },
 };
 
 interface AppState {
@@ -82,18 +105,20 @@ interface AppState {
   data?: EngineData;
   currency: CurrencyItem[];
 
-  crafts: Craft[];
+  objects: StashObject[];
   nextKey: number;
-  /** The craft whose card/odds/history the centre column shows. */
+  /** The craft whose odds/history the centre column shows. */
   activeKey?: number;
-  /** Item "picked up on the cursor" (exclusive with selectedCurrency). */
+  /** Object "picked up on the cursor" (exclusive with selectedCurrency). */
   heldKey?: number;
-  /** Where the held item came from, so Escape can put it back. */
+  /** Where the held object came from, so Escape can put it back. */
   heldFrom?: { place?: Placement; equipped?: EquipSlot };
   /** Base picker overlay (also shown whenever nothing has been crafted). */
   pickerOpen: boolean;
-  /** Currency id "held on the cursor", ready to apply to an item. */
+  /** Currency id armed for use on the next item click (game: right-click). */
   selectedCurrency?: string;
+  /** When the armed currency came from a placed stack, uses consume it. */
+  selectedStack?: number;
   /** Omens armed for the next currency use (game: activation slots). */
   armedOmens: string[];
   /**
@@ -112,21 +137,24 @@ interface AppState {
   startCraft(item: Item): void;
   openPicker(): void;
   closePicker(): void;
-  selectCurrency(id: string | undefined): void;
+  /** Arm a currency for use; stackKey marks the stack it's drawn from. */
+  selectCurrency(id: string | undefined, stackKey?: number): void;
+  /** Take a fresh stack of a currency from the stash onto the cursor. */
+  takeStack(currencyId: string): void;
   toggleOmen(id: string): void;
-  /** Apply the held currency to a craft; runes may target a clicked socket. */
+  /** Apply the armed currency to a craft; runes may target a clicked socket. */
   applyTo(key: number, socketIndex?: number): void;
-  /** Pick an item up onto the cursor (or set it active if one is held). */
+  /** Pick an object up onto the cursor. */
   pickUp(key: number): void;
-  /** Put the held item down at a grid cell (swaps with a blocking item). */
+  /** Put the held object down at a grid cell (swap or merge with blockers). */
   putDown(container: Container, x: number, y: number): void;
   /** Equip the held item into a doll slot (swaps with the occupant). */
   equipHeld(slot: EquipSlot): void;
-  /** Return the held item to where it was picked up (Escape). */
+  /** Return the held object to where it was picked up (Escape). */
   returnHeld(): void;
-  /** Destroy the held item outright. */
+  /** Destroy the held object outright. */
   discardHeld(): void;
-  /** Ctrl+click: move an item inventory ⇄ stash to the first free spot. */
+  /** Ctrl+click: move an object inventory ⇄ stash to the first free spot. */
   quickMove(key: number): void;
   setActive(key: number): void;
   chooseReveal(choice: number): void;
@@ -153,42 +181,70 @@ export const currentItem = (session: Session): Item =>
 export const itemAt = (session: Session, index: number): Item =>
   index <= 0 ? session.initial : session.steps[Math.min(index, session.steps.length) - 1].after;
 
-export const craftByKey = (crafts: readonly Craft[], key: number | undefined): Craft | undefined =>
-  key === undefined ? undefined : crafts.find((c) => c.key === key);
+export const objectByKey = (
+  objects: readonly StashObject[],
+  key: number | undefined,
+): StashObject | undefined => (key === undefined ? undefined : objects.find((o) => o.key === key));
 
-/** Occupied cells of a container, optionally ignoring one craft (the held/swapped one). */
+export const craftByKey = (
+  objects: readonly StashObject[],
+  key: number | undefined,
+): Craft | undefined => {
+  const o = objectByKey(objects, key);
+  return o && isCraft(o) ? o : undefined;
+};
+
+export const objectRect = (data: EngineData, o: StashObject, x: number, y: number): Rect =>
+  isCraft(o) ? itemRect(data, currentItem(o.session), x, y) : { x, y, w: 1, h: 1 };
+
+/** Occupied cells of a container, optionally ignoring one object. */
 export function takenRects(
   data: EngineData,
-  crafts: readonly Craft[],
+  objects: readonly StashObject[],
   container: Container,
   excludeKey?: number,
 ): Rect[] {
-  return crafts
-    .filter((c) => c.place?.container === container && c.key !== excludeKey)
-    .map((c) => itemRect(data, currentItem(c.session), c.place!.x, c.place!.y));
+  return objects
+    .filter((o) => o.place?.container === container && o.key !== excludeKey)
+    .map((o) => objectRect(data, o, o.place!.x, o.place!.y));
 }
 
-/** First free spot for an item, trying the inventory before the stash. */
-function autoPlace(data: EngineData, crafts: readonly Craft[], item: Item): Placement | undefined {
+/** What a container may hold (currency tab slots are specialised). */
+export function containerAccepts(container: Container, o: StashObject): boolean {
+  if (container === "curtab") return isCraft(o);
+  if (container === "curwild") return !isCraft(o);
+  return true;
+}
+
+/** First free spot for an object, trying the inventory before the stash. */
+function autoPlace(
+  data: EngineData,
+  objects: readonly StashObject[],
+  o: StashObject,
+): Placement | undefined {
+  const { w, h } = objectRect(data, o, 0, 0);
   for (const container of ["inventory", "stash"] as const) {
-    const { w, h } = itemRect(data, item, 0, 0);
-    const spot = findSpot(w, h, takenRects(data, crafts, container), GRIDS[container]);
+    const spot = findSpot(w, h, takenRects(data, objects, container, o.key), GRIDS[container]);
     if (spot) return { container, ...spot };
   }
   return undefined;
 }
 
-const equippedMap = (crafts: readonly Craft[], excludeKey?: number): Map<EquipSlot, Item> =>
+const equippedMap = (objects: readonly StashObject[], excludeKey?: number): Map<EquipSlot, Item> =>
   new Map(
-    crafts
-      .filter((c) => c.equipped && c.key !== excludeKey)
+    objects
+      .filter((o): o is Craft => isCraft(o) && o.equipped !== undefined && o.key !== excludeKey)
       .map((c) => [c.equipped!, currentItem(c.session)]),
   );
+
+/** Game inventory stack size for a currency (datamined; sane default). */
+export const stackSize = (currency: readonly CurrencyItem[], id: string): number =>
+  currency.find((c) => c.id === id)?.stack ?? 10;
 
 export const useApp = create<AppState>((set, get) => ({
   status: "loading",
   currency: [],
-  crafts: [],
+  objects: [],
   nextKey: 1,
   pickerOpen: false,
   armedOmens: [],
@@ -210,13 +266,9 @@ export const useApp = create<AppState>((set, get) => ({
       const shared = encoded ? decodeSession(data, encoded) : undefined;
       set({ status: "ready", meta, currency, data });
       if (shared) {
-        const place = autoPlace(data, [], currentItem(shared));
-        set({
-          crafts: [{ key: 1, session: shared, place }],
-          nextKey: 2,
-          activeKey: 1,
-          replayIndex: 0,
-        });
+        const craft: Craft = { key: 1, session: shared };
+        craft.place = autoPlace(data, [], craft);
+        set({ objects: [craft], nextKey: 2, activeKey: 1, replayIndex: 0 });
       }
     } catch (err) {
       set({ status: "error", error: err instanceof Error ? err.message : String(err) });
@@ -224,26 +276,42 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   startCraft(item) {
-    const { data, crafts, nextKey } = get();
+    const { data, objects, nextKey } = get();
     if (!data) return;
-    const place = autoPlace(data, crafts, item);
-    const craft: Craft = { key: nextKey, session: { initial: item, steps: [] }, place };
+    const craft: Craft = { key: nextKey, session: { initial: item, steps: [] } };
+    craft.place = autoPlace(data, objects, craft);
     set({
-      crafts: [...crafts, craft],
+      objects: [...objects, craft],
       nextKey: nextKey + 1,
       activeKey: craft.key,
       pickerOpen: false,
       // No room anywhere → the new item starts on the cursor.
-      ...(place ? {} : { heldKey: craft.key, heldFrom: undefined, selectedCurrency: undefined }),
+      ...(craft.place
+        ? {}
+        : { heldKey: craft.key, heldFrom: undefined, selectedCurrency: undefined, selectedStack: undefined }),
     });
   },
 
   openPicker: () => set({ pickerOpen: true }),
   closePicker: () => set({ pickerOpen: false }),
 
-  selectCurrency(id) {
+  selectCurrency(id, stackKey) {
     if (get().heldKey !== undefined) get().returnHeld();
-    set({ selectedCurrency: id });
+    set({ selectedCurrency: id, selectedStack: id === undefined ? undefined : stackKey });
+  },
+
+  takeStack(currencyId) {
+    const { objects, nextKey, heldKey, replayIndex, currency } = get();
+    if (heldKey !== undefined || replayIndex !== undefined) return;
+    const stack: Stack = { key: nextKey, currencyId, count: stackSize(currency, currencyId) };
+    set({
+      objects: [...objects, stack],
+      nextKey: nextKey + 1,
+      heldKey: stack.key,
+      heldFrom: undefined,
+      selectedCurrency: undefined,
+      selectedStack: undefined,
+    });
   },
 
   toggleOmen(id) {
@@ -256,8 +324,9 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   applyTo(key, socketIndex) {
-    const { data, crafts, selectedCurrency, armedOmens, replayIndex, pendingReveal } = get();
-    const craft = craftByKey(crafts, key);
+    const { data, objects, selectedCurrency, selectedStack, armedOmens, replayIndex, pendingReveal } =
+      get();
+    const craft = craftByKey(objects, key);
     if (!data || !craft || !selectedCurrency || replayIndex !== undefined) return;
     if (pendingReveal) return; // a Well of Souls choice is open
     const action = actionFor(data, selectedCurrency);
@@ -271,14 +340,32 @@ export const useApp = create<AppState>((set, get) => ({
     } else if (action.canApply(data, item, omens) !== null) {
       return;
     }
+    // Uses drawn from a placed stack consume it, one per application.
+    const source = objectByKey(objects, selectedStack);
+    const consumeStack = (from: StashObject[]): [StashObject[], Partial<AppState>] => {
+      if (!source || isCraft(source)) return [from, {}];
+      if (source.count > 1) {
+        return [
+          from.map((o) => (o.key === source.key ? { ...o, count: source.count - 1 } : o)),
+          {},
+        ];
+      }
+      return [
+        from.filter((o) => o.key !== source.key),
+        { selectedCurrency: undefined, selectedStack: undefined },
+      ];
+    };
     // Bones open the Well of Souls choice instead of resolving immediately
     // (Putrefaction skips the reveal — everything is replaced at once).
     if (action.kind === "desecrate" && !omens.has(OMEN.putrefaction)) {
       const reveal = desecrationReveal(data, item, liveRng, BONES.get(selectedCurrency)!, omens);
+      const [next, selection] = consumeStack(objects);
       set({
         activeKey: key,
+        objects: next,
         pendingReveal: { key, currencyId: selectedCurrency, reveal },
         armedOmens: armedOmens.filter((o) => !reveal.consumed.includes(o)),
+        ...selection,
       });
       return;
     }
@@ -293,156 +380,205 @@ export const useApp = create<AppState>((set, get) => ({
       events: result.events,
       after: result.item,
     };
+    const withStep = objects.map((o) =>
+      o.key === key && isCraft(o)
+        ? { ...o, session: { ...o.session, steps: [...o.session.steps, step] } }
+        : o,
+    );
+    const [next, selection] = consumeStack(withStep);
     set({
       activeKey: key,
-      crafts: crafts.map((c) =>
-        c.key === key ? { ...c, session: { ...c.session, steps: [...c.session.steps, step] } } : c,
-      ),
+      objects: next,
       armedOmens: armedOmens.filter((o) => !consumed.includes(o)),
+      ...selection,
     });
   },
 
   pickUp(key) {
-    const { crafts, heldKey, replayIndex } = get();
-    const craft = craftByKey(crafts, key);
-    if (!craft || replayIndex !== undefined) return;
-    if (heldKey !== undefined) return; // put the held item down first
+    const { objects, heldKey, replayIndex } = get();
+    const obj = objectByKey(objects, key);
+    if (!obj || replayIndex !== undefined) return;
+    if (heldKey !== undefined) return; // put the held object down first
     set({
       heldKey: key,
-      heldFrom: { place: craft.place, equipped: craft.equipped },
-      activeKey: key,
+      heldFrom: { place: obj.place, equipped: obj.equipped },
+      ...(isCraft(obj) ? { activeKey: key } : {}),
       selectedCurrency: undefined,
-      crafts: crafts.map((c) =>
-        c.key === key ? { ...c, place: undefined, equipped: undefined } : c,
+      selectedStack: undefined,
+      objects: objects.map((o) =>
+        o.key === key ? { ...o, place: undefined, equipped: undefined } : o,
       ),
     });
   },
 
   putDown(container, x, y) {
-    const { data, crafts, heldKey } = get();
-    const held = craftByKey(crafts, heldKey);
+    const { data, objects, heldKey, currency } = get();
+    const held = objectByKey(objects, heldKey);
     if (!data || !held) return;
-    const item = currentItem(held.session);
-    const rect = itemRect(data, item, x, y);
+    if (!containerAccepts(container, held)) return;
+    // The central crafting slot holds exactly one item, always docked at 0,0.
+    if (container === "curtab") {
+      x = 0;
+      y = 0;
+    }
+    const rect = objectRect(data, held, x, y);
     const grid = GRIDS[container];
-    if (canPlace(rect, takenRects(data, crafts, container), grid)) {
+    if (canPlace(rect, takenRects(data, objects, container, held.key), grid)) {
       set({
         heldKey: undefined,
         heldFrom: undefined,
-        crafts: crafts.map((c) =>
-          c.key === held.key ? { ...c, place: { container, x, y }, equipped: undefined } : c,
+        objects: objects.map((o) =>
+          o.key === held.key ? { ...o, place: { container, x, y }, equipped: undefined } : o,
         ),
       });
       return;
     }
-    // Blocked: if exactly one item is in the way and removing it frees the
-    // spot, swap — the blocker moves onto the cursor (game behaviour).
-    const inWay = crafts.filter(
-      (c) =>
-        c.key !== held.key &&
-        c.place?.container === container &&
-        overlaps(rect, itemRect(data, currentItem(c.session), c.place.x, c.place.y)),
+    // Blocked: a single blocking object either merges (same-currency stack)
+    // or swaps onto the cursor, like the game.
+    const inWay = objects.filter(
+      (o) =>
+        o.key !== held.key &&
+        o.place?.container === container &&
+        overlaps(rect, objectRect(data, o, o.place.x, o.place.y)),
     );
     if (inWay.length !== 1) return;
     const blocker = inWay[0];
-    if (!canPlace(rect, takenRects(data, crafts, container, blocker.key), grid)) return;
+    if (
+      !isCraft(held) &&
+      !isCraft(blocker) &&
+      held.currencyId === blocker.currencyId
+    ) {
+      const max = stackSize(currency, held.currencyId);
+      const moved = Math.min(max - blocker.count, held.count);
+      if (moved <= 0) return;
+      const emptied = moved === held.count;
+      set({
+        ...(emptied ? { heldKey: undefined, heldFrom: undefined } : {}),
+        objects: objects
+          .map((o) =>
+            o.key === blocker.key
+              ? { ...o, count: blocker.count + moved }
+              : o.key === held.key
+                ? { ...o, count: held.count - moved }
+                : o,
+          )
+          .filter((o) => !(o.key === held.key && emptied)),
+      });
+      return;
+    }
+    if (!containerAccepts(container, blocker)) return;
+    if (!canPlace(rect, takenRects(data, objects, container, blocker.key), grid)) return;
     set({
       heldKey: blocker.key,
       heldFrom: { place: blocker.place },
-      activeKey: blocker.key,
-      crafts: crafts.map((c) =>
-        c.key === held.key
-          ? { ...c, place: { container, x, y }, equipped: undefined }
-          : c.key === blocker.key
-            ? { ...c, place: undefined, equipped: undefined }
-            : c,
+      ...(isCraft(blocker) ? { activeKey: blocker.key } : {}),
+      objects: objects.map((o) =>
+        o.key === held.key
+          ? { ...o, place: { container, x, y }, equipped: undefined }
+          : o.key === blocker.key
+            ? { ...o, place: undefined, equipped: undefined }
+            : o,
       ),
     });
   },
 
   equipHeld(slot) {
-    const { data, crafts, heldKey } = get();
-    const held = craftByKey(crafts, heldKey);
+    const { data, objects, heldKey } = get();
+    const held = craftByKey(objects, heldKey);
     if (!data || !held) return;
     const item = currentItem(held.session);
-    if (canEquip(data, item, slot, equippedMap(crafts, held.key)) !== null) return;
-    const occupant = crafts.find((c) => c.key !== held.key && c.equipped === slot);
+    if (canEquip(data, item, slot, equippedMap(objects, held.key)) !== null) return;
+    const occupant = objects.find(
+      (o): o is Craft => isCraft(o) && o.key !== held.key && o.equipped === slot,
+    );
     set({
       heldKey: occupant?.key,
       heldFrom: occupant ? { equipped: slot } : undefined,
       ...(occupant ? { activeKey: occupant.key } : {}),
-      crafts: crafts.map((c) =>
-        c.key === held.key
-          ? { ...c, place: undefined, equipped: slot }
-          : c.key === occupant?.key
-            ? { ...c, place: undefined, equipped: undefined }
-            : c,
+      objects: objects.map((o) =>
+        o.key === held.key
+          ? { ...o, place: undefined, equipped: slot }
+          : o.key === occupant?.key
+            ? { ...o, place: undefined, equipped: undefined }
+            : o,
       ),
     });
   },
 
   returnHeld() {
-    const { data, crafts, heldKey, heldFrom } = get();
-    const held = craftByKey(crafts, heldKey);
+    const { data, objects, heldKey, heldFrom } = get();
+    const held = objectByKey(objects, heldKey);
     if (!data || !held) return;
-    const item = currentItem(held.session);
+    // A fresh stack straight off the stash tab dissolves back into it.
+    if (!isCraft(held) && !heldFrom?.place && !heldFrom?.equipped) {
+      set({
+        heldKey: undefined,
+        heldFrom: undefined,
+        objects: objects.filter((o) => o.key !== held.key),
+      });
+      return;
+    }
     // Original spot if still free, else first free spot anywhere.
     let place: Placement | undefined;
     let equipped: EquipSlot | undefined;
-    if (heldFrom?.equipped && canEquip(data, item, heldFrom.equipped, equippedMap(crafts, held.key)) === null) {
+    if (
+      heldFrom?.equipped &&
+      isCraft(held) &&
+      canEquip(data, currentItem(held.session), heldFrom.equipped, equippedMap(objects, held.key)) === null
+    ) {
       equipped = heldFrom.equipped;
     } else if (heldFrom?.place) {
-      const rect = itemRect(data, item, heldFrom.place.x, heldFrom.place.y);
+      const rect = objectRect(data, held, heldFrom.place.x, heldFrom.place.y);
       const container = heldFrom.place.container;
-      if (canPlace(rect, takenRects(data, crafts, container, held.key), GRIDS[container])) {
+      if (canPlace(rect, takenRects(data, objects, container, held.key), GRIDS[container])) {
         place = heldFrom.place;
       }
     }
-    if (!place && !equipped) place = autoPlace(data, crafts, item);
+    if (!place && !equipped) place = autoPlace(data, objects, held);
     if (!place && !equipped) return; // nowhere to go — stays on the cursor
     set({
       heldKey: undefined,
       heldFrom: undefined,
-      crafts: crafts.map((c) => (c.key === held.key ? { ...c, place, equipped } : c)),
+      objects: objects.map((o) => (o.key === held.key ? { ...o, place, equipped } : o)),
     });
   },
 
   discardHeld() {
-    const { crafts, heldKey, activeKey } = get();
+    const { objects, heldKey, activeKey } = get();
     if (heldKey === undefined) return;
-    const remaining = crafts.filter((c) => c.key !== heldKey);
+    const remaining = objects.filter((o) => o.key !== heldKey);
+    const crafts = remaining.filter(isCraft);
     set({
-      crafts: remaining,
+      objects: remaining,
       heldKey: undefined,
       heldFrom: undefined,
-      activeKey: activeKey === heldKey ? remaining[remaining.length - 1]?.key : activeKey,
+      activeKey: activeKey === heldKey ? crafts[crafts.length - 1]?.key : activeKey,
     });
   },
 
   quickMove(key) {
-    const { data, crafts, heldKey, replayIndex } = get();
-    const craft = craftByKey(crafts, key);
-    if (!data || !craft || heldKey !== undefined || replayIndex !== undefined) return;
-    const item = currentItem(craft.session);
-    const target: Container = craft.place?.container === "inventory" ? "stash" : "inventory";
-    const { w, h } = itemRect(data, item, 0, 0);
-    const spot = findSpot(w, h, takenRects(data, crafts, target, key), GRIDS[target]);
+    const { data, objects, heldKey, replayIndex } = get();
+    const obj = objectByKey(objects, key);
+    if (!data || !obj || heldKey !== undefined || replayIndex !== undefined) return;
+    const target: Container = obj.place?.container === "inventory" ? "stash" : "inventory";
+    const { w, h } = objectRect(data, obj, 0, 0);
+    const spot = findSpot(w, h, takenRects(data, objects, target, key), GRIDS[target]);
     if (!spot) return;
     set({
-      activeKey: key,
-      crafts: crafts.map((c) =>
-        c.key === key ? { ...c, place: { container: target, ...spot }, equipped: undefined } : c,
+      ...(isCraft(obj) ? { activeKey: key } : {}),
+      objects: objects.map((o) =>
+        o.key === key ? { ...o, place: { container: target, ...spot }, equipped: undefined } : o,
       ),
     });
   },
 
   setActive(key) {
-    if (craftByKey(get().crafts, key)) set({ activeKey: key });
+    if (craftByKey(get().objects, key)) set({ activeKey: key });
   },
 
   chooseReveal(choice) {
-    const { data, crafts, pendingReveal } = get();
-    const craft = craftByKey(crafts, pendingReveal?.key);
+    const { data, objects, pendingReveal } = get();
+    const craft = craftByKey(objects, pendingReveal?.key);
     if (!data || !craft || !pendingReveal) return;
     if (choice < 0 || choice >= pendingReveal.reveal.options.length) return;
     const item = currentItem(craft.session);
@@ -454,18 +590,18 @@ export const useApp = create<AppState>((set, get) => ({
       after: result.item,
     };
     set({
-      crafts: crafts.map((c) =>
-        c.key === craft.key
-          ? { ...c, session: { ...c.session, steps: [...c.session.steps, step] } }
-          : c,
+      objects: objects.map((o) =>
+        o.key === craft.key && isCraft(o)
+          ? { ...o, session: { ...o.session, steps: [...o.session.steps, step] } }
+          : o,
       ),
       pendingReveal: undefined,
     });
   },
 
   rerollPendingReveal() {
-    const { data, crafts, pendingReveal, armedOmens } = get();
-    const craft = craftByKey(crafts, pendingReveal?.key);
+    const { data, objects, pendingReveal, armedOmens } = get();
+    const craft = craftByKey(objects, pendingReveal?.key);
     if (!data || !craft || !pendingReveal) return;
     if (!armedOmens.includes(OMEN.abyssalEchoes)) return;
     const reveal = rerollReveal(
@@ -483,27 +619,28 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   undo() {
-    const { crafts, activeKey, replayIndex, pendingReveal } = get();
-    const craft = craftByKey(crafts, activeKey);
+    const { objects, activeKey, replayIndex, pendingReveal } = get();
+    const craft = craftByKey(objects, activeKey);
     if (!craft || craft.session.steps.length === 0 || replayIndex !== undefined) return;
     if (pendingReveal) return;
     set({
-      crafts: crafts.map((c) =>
-        c.key === craft.key
-          ? { ...c, session: { ...c.session, steps: c.session.steps.slice(0, -1) } }
-          : c,
+      objects: objects.map((o) =>
+        o.key === craft.key && isCraft(o)
+          ? { ...o, session: { ...o.session, steps: o.session.steps.slice(0, -1) } }
+          : o,
       ),
     });
   },
 
   reset() {
     set({
-      crafts: [],
+      objects: [],
       activeKey: undefined,
       heldKey: undefined,
       heldFrom: undefined,
       pickerOpen: false,
       selectedCurrency: undefined,
+      selectedStack: undefined,
       armedOmens: [],
       replayIndex: undefined,
       pendingReveal: undefined,
@@ -513,10 +650,10 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   enterReplay() {
-    const craft = craftByKey(get().crafts, get().activeKey);
+    const craft = craftByKey(get().objects, get().activeKey);
     if (!craft || craft.session.steps.length === 0) return;
     if (get().heldKey !== undefined) get().returnHeld();
-    set({ replayIndex: 0, selectedCurrency: undefined });
+    set({ replayIndex: 0, selectedCurrency: undefined, selectedStack: undefined });
   },
 
   exitReplay() {
@@ -524,8 +661,8 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   setReplay(index) {
-    const { crafts, activeKey, replayIndex } = get();
-    const craft = craftByKey(crafts, activeKey);
+    const { objects, activeKey, replayIndex } = get();
+    const craft = craftByKey(objects, activeKey);
     if (!craft || replayIndex === undefined) return;
     set({ replayIndex: Math.max(0, Math.min(index, craft.session.steps.length)) });
   },
