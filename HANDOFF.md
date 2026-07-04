@@ -111,6 +111,25 @@ Engine essentials:
   currency + omens, auto-switches to its tab) and `readOnly`; StepLog dims
   future steps and hides their outcomes (no spoilers), click jumps.
 
+## Game-accurate tooltip (user feedback, post-phase-6)
+
+Ongoing mission: the UI should match the in-game look as closely as
+possible — check reference screenshots when styling. The item card now
+mirrors the game tooltip: per-rarity name plate (rares show a flavour name
+above the base name — deterministic from base+ilvl, word pools in
+`src/ui/itemname.ts` are hand-picked flavour, NOT datamined; magic items
+weave the datamined affix names around the base name), centred stat lines,
+golden separators, enchant (corruption) / implicit / explicit sections.
+Holding **Alt** (or the topbar "Alt info" toggle) shows advanced mod
+descriptions like the game: an `Item Level:` line, per-mod grey headers
+`Prefix Modifier "Hale" (Tier: 7) — Life`, and roll ranges after each
+value (`renderModTextRanges`; ranges always display low→high). Tiers come
+from `src/engine/tiers.ts`: **PoE2 tiers count UP** (Tier 1 = weakest;
+GGG reversed PoE1 so new top tiers can be added) — the ladder is every
+same-generation/same-group mod spawnable on the base ignoring ilvl;
+essence-only mods are inserted into the same ladder (approximation). Tag
+lists shown are the mod's catalystTags minus compound `a_b` duplicates.
+
 ## Conventions & gotchas
 
 - All relative imports in `src/` use explicit `.ts`/`.tsx` extensions
@@ -167,9 +186,9 @@ Engine essentials:
 ## Verification bar (keep it)
 
 Every phase so far shipped with: unit/property/golden tests on the engine
-(94 passing — omen interaction order, essence family, catalysts, jewels,
+(104 passing — omen interaction order, essence family, catalysts, jewels,
 display-unit remapping, odds-vs-empirical, share-link roundtrip, computed
-defences),
+defences, tier numbering, item naming, advanced-range rendering),
 statistical distribution tests where randomness matters, and for pool
 correctness the Craft of Exile oracle (16 item classes, zero unexplained
 differences). Phase 7 (Runeforging) should keep the pattern: mechanics
