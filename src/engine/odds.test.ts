@@ -63,7 +63,8 @@ function expectMatchesOdds(counts: Map<string, number>, odds: AdditionOdds, n: n
 }
 
 describe("oddsFor vs empirical apply()", () => {
-  it("exalt addition families match 20k rolls", () => {
+  // 20k apply() calls rebuild the pool each roll — allow for slow CI workers
+  it("exalt addition families match 20k rolls", { timeout: 30_000 }, () => {
     const item = rareWith(data, findBase(data, "Amulet"), [
       ...pickPoolMods(data, rareWith(data, findBase(data, "Amulet"), []), "prefix", 1),
       ...pickPoolMods(data, rareWith(data, findBase(data, "Amulet"), []), "suffix", 1),
@@ -76,7 +77,7 @@ describe("oddsFor vs empirical apply()", () => {
     expectMatchesOdds(sampleAdded(item, "exalted", seededRng(7), n), odds.addition!, n);
   });
 
-  it("chaos removal is uniform and addition matches the removal mixture", () => {
+  it("chaos removal is uniform and addition matches the removal mixture", { timeout: 30_000 }, () => {
     const base = findBase(data, "Ring");
     const empty = rareWith(data, base, []);
     const item = rareWith(data, base, [
@@ -145,7 +146,7 @@ describe("oddsFor vs empirical apply()", () => {
     }
   });
 
-  it("vaal outcome split matches 8k corruptions", () => {
+  it("vaal outcome split matches 8k corruptions", { timeout: 30_000 }, () => {
     const base = findBase(data, "Body Armour");
     const empty = rareWith(data, base, []);
     const item = rareWith(data, base, [
