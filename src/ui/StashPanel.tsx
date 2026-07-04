@@ -11,6 +11,7 @@ import { tradeSlug, type EngineData } from "../engine/data.ts";
 import type { Item } from "../engine/item.ts";
 import { ALLOYS, BONES, CATALYSTS, CORRUPTED_ESSENCES, OMEN } from "../engine/mechanics.ts";
 import { useApp } from "../state/store.ts";
+import { CurrencyCard } from "./CurrencyCard.tsx";
 import { ItemGrid } from "./ItemGrid.tsx";
 
 const TABS = ["Items", "Currency", "Essences", "Runes", "Omens", "Abyss", "Breach", "Delirium", "Verisium"] as const;
@@ -131,7 +132,7 @@ function essenceTierIndex(name: string): number {
 interface TooltipState {
   x: number;
   y: number;
-  name: string;
+  id: string;
   note?: string;
   noteKind: "ok" | "blocked" | "info";
 }
@@ -144,7 +145,6 @@ export function StashPanel({
   armedOmens,
   onSelect,
   onToggleOmen,
-  onHover,
   highlight,
   readOnly = false,
   onHoverObject,
@@ -157,8 +157,6 @@ export function StashPanel({
   armedOmens: string[];
   onSelect: (id: string | undefined) => void;
   onToggleOmen: (id: string) => void;
-  /** Hovered currency id, for the odds panel. */
-  onHover?: (id: string | undefined) => void;
   /** Tutorial mode: pulse these slots and jump to the currency's tab. */
   highlight?: { currencyId?: string; omens: readonly string[] };
   /** Tutorial mode: slots are display-only. */
@@ -188,6 +186,9 @@ export function StashPanel({
     return action.canApply(data, item, omens);
   };
 
+  // The effect itself (what the currency would do to the active item, or
+  // why it can't apply) renders inside the tooltip card; the note is just
+  // the click-usage hint.
   const showTooltip = (e: MouseEvent, info: CurrencyItem, isOmen: boolean) => {
     const blocked = blockedReason(info.id);
     let note: string | undefined;
@@ -203,16 +204,19 @@ export function StashPanel({
     } else if (blocked === undefined) {
       note = "Not simulated — left-click takes a stack";
       noteKind = "info";
-    } else if (blocked) {
-      note = `${blocked} — left-click takes a stack`;
+    } else if (!item) {
+      note = "Pick a base item first — left-click takes a stack";
       noteKind = "blocked";
+    } else if (blocked) {
+      note = "Left-click takes a stack";
+      noteKind = "info";
     } else {
       note =
         selected === info.id
           ? "Click the item to apply"
           : "Right-click to use • left-click takes a stack";
     }
-    setTooltip({ x: e.clientX, y: e.clientY, name: info.name, note, noteKind });
+    setTooltip({ x: e.clientX, y: e.clientY, id: info.id, note, noteKind });
   };
 
   const slot = (id: string, options: { omen?: boolean; dim?: boolean } = {}) => {
@@ -246,15 +250,9 @@ export function StashPanel({
           else if (blocked === undefined) return;
           else onSelect(selected === id ? undefined : id);
         }}
-        onMouseEnter={(e) => {
-          showTooltip(e, info, isOmen);
-          if (blocked !== undefined) onHover?.(id);
-        }}
+        onMouseEnter={(e) => showTooltip(e, info, isOmen)}
         onMouseMove={(e) => showTooltip(e, info, isOmen)}
-        onMouseLeave={() => {
-          setTooltip(null);
-          onHover?.(undefined);
-        }}
+        onMouseLeave={() => setTooltip(null)}
       >
         <img src={info.icon} alt={info.name} loading="lazy" draggable={false} />
         {isOmen && omens.has(id) && <span className="slot-pip" />}
@@ -484,15 +482,22 @@ export function StashPanel({
         )}
       </div>
 
-      {tooltip && (
+      {tooltip && byId.has(tooltip.id) && (
         <div
           className="stash-tooltip"
-          style={{ left: Math.min(tooltip.x + 14, window.innerWidth - 280), top: tooltip.y + 18 }}
+          style={{
+            left: Math.max(8, Math.min(tooltip.x + 14, window.innerWidth - 440)),
+            top: Math.max(8, Math.min(tooltip.y + 18, window.innerHeight - 380)),
+          }}
         >
-          <div className="tooltip-name">{tooltip.name}</div>
-          {tooltip.note && (
-            <div className={`tooltip-note tooltip-${tooltip.noteKind}`}>{tooltip.note}</div>
-          )}
+          <CurrencyCard
+            data={data}
+            info={byId.get(tooltip.id)!}
+            item={item}
+            omens={armedOmens}
+            note={tooltip.note}
+            noteKind={tooltip.noteKind}
+          />
         </div>
       )}
     </section>

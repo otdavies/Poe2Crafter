@@ -26,6 +26,7 @@ Zustand + Vitest, oxlint).
 | 7 | Runes + sockets (Artificer's Orb, 213 datamined runes, Runes tab) | ✅ done |
 | 8 | Game-mimicry UI: character inventory (equipment doll + 12×5 backpack), stash Items tab (12×12), pick-up/put-down/swap/equip, multi-item crafting (standing user goal: "fully mimic the in-game UI") | ✅ done |
 | 8.5 | Game-mimicry follow-ups (user feedback): hover-only item tooltip, item art from poe2wiki, currency tab laid out like the premium tab (family grid + crafting slot + wildcards), currencies as draggable 1×1 stacks (left-click takes, right-click uses, merge/consume) | ✅ done |
+| 8.6 | Currency effects in the hover tooltip (user feedback): hovering any currency slot/stack shows its effect on the active item (odds body) in the tooltip; the standalone centre odds window removed — the game explains usage exclusively through tooltips | ✅ done |
 | 9 | Game-mimicry polish: weapon-set I/II slots, hold-drag in addition to click-carry, shift-click stack splitting, Verisium Anvil once formula is known | **⬅ NEXT** |
 
 Recombination is deliberately out of scope (disabled in 0.5 anyway). The
@@ -101,9 +102,11 @@ Engine essentials:
   exactly over each possible removal; Vaal folds impossible outcomes into
   "no change" the way apply() does. `odds.test.ts` asserts odds == empirical
   apply() distributions over 8k–20k seeded rolls (keep that invariant for
-  any new mechanic). UI: `src/ui/OddsPanel.tsx`, shown for the hovered or
-  held currency; family labels merge tier ranges via `familyText` in
-  modtext.ts.
+  any new mechanic). UI: `src/ui/CurrencyCard.tsx` — the odds body renders
+  inside the currency hover tooltip (stash slots and placed stacks), like
+  the game, which explains usage exclusively through tooltips. There is no
+  standalone odds window. Family labels merge tier ranges via `familyText`
+  in modtext.ts.
 - **Share links**: `src/state/share.ts` — lz-string
   compressToEncodedURIComponent of `{v: 1, session}` in `#c=…`. Decode
   validates every base/mod id against the loaded bundle and rejects
@@ -293,6 +296,13 @@ tooltip column centre, character inventory right.
   slot), floating next to it like the game; the persistent centre card
   remains only in tutorial replay. Rune sockets render as dots on the tile
   itself and become click targets while a rune is armed.
+- Hovering any currency — a stash slot or a placed stack — shows a currency
+  tooltip (`ui/CurrencyCard.tsx`): name/icon (+ count/cap for stacks), its
+  concrete effect on the active item (the oddsFor body: adds/removes/
+  outcomes, or the red blocked reason), and a click-usage hint. The old
+  standalone centre odds window is gone; the game explains usage
+  exclusively through tooltips and so do we. The centre column now holds
+  only the step log (plus tutorial bar/card in replay).
 - Currencies are ordinary 1×1 stackable items (phase 8.5): left-click a
   stash slot takes a full stack onto the cursor (datamined stack sizes in
   currency.json: exalts 20, essences/runes/omens 10), stacks place into

@@ -30,7 +30,8 @@ export function ItemGrid({
 }: {
   container: Container;
   runeIcons?: ReadonlyMap<string, string>;
-  /** The hovered craft drives the floating item tooltip. */
+  /** The hovered object drives the floating tooltip — the item card for
+   * crafts, the currency effect card for stacks. */
   onHoverObject?: (key: number | undefined, at?: { x: number; y: number }) => void;
 }) {
   const data = useApp((s) => s.data)!;
@@ -151,6 +152,11 @@ export function ItemGrid({
               style={style}
               onClick={(e) => clickObject(e, o.key)}
               onContextMenu={(e) => armStack(e, o.key)}
+              onMouseEnter={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                onHoverObject?.(o.key, { x: r.right, y: r.top });
+              }}
+              onMouseLeave={() => onHoverObject?.(undefined)}
             >
               <StackTile
                 name={info?.name ?? o.currencyId}

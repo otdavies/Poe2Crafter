@@ -279,19 +279,15 @@ button.primary {
 
 .stash-tooltip {
   position: fixed;
-  z-index: 10;
-  max-width: 260px;
+  z-index: 90;
+  width: max-content;
+  max-width: 420px;
   pointer-events: none;
   background: #0b0a08f2;
   border: 1px solid #6a5a30;
   border-radius: 4px;
   padding: 0.45rem 0.6rem;
   box-shadow: 0 4px 14px #000c;
-}
-
-.tooltip-name {
-  color: #e8d5a0;
-  font-size: 0.85rem;
 }
 
 .tooltip-note {
@@ -817,40 +813,59 @@ button.toggled {
 .event-sanctified { color: #e8d5a0; }
 .event-quality { color: #8888ff; }
 
-/* ---- odds panel --------------------------------------------------------- */
-.odds-panel {
-  width: 100%;
-  max-width: 28rem;
-  background: #131317;
-  border: 1px solid #26262a;
-  border-radius: 4px;
-  padding: 0.8rem 0.9rem;
+/* ---- currency effect card (inside hover tooltips) ---------------------- */
+.currency-card {
   font-size: 0.8rem;
+  min-width: 15rem;
 }
 
-.odds-panel h3 {
+.currency-head {
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  margin: 0 0 0.5rem;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #8a7a50;
 }
 
-.odds-panel h3 img {
+.currency-head img {
   width: 22px;
   height: 22px;
 }
 
-.odds-panel h4 {
+.currency-name {
+  color: #e8d5a0;
+  font-size: 0.85rem;
+}
+
+.currency-stack {
+  margin-left: auto;
+  color: #d4b060;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+}
+
+.currency-effect {
+  margin-top: 0.4rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid #3a3222;
+}
+
+.currency-card h4 {
   margin: 0.6rem 0 0.3rem;
   font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #6d6d78;
+}
+
+.currency-card h4.currency-target {
+  margin-top: 0;
+  color: #8a7a50;
+}
+
+.currency-card .tooltip-note {
+  margin-top: 0.45rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid #3a3222;
 }
 
 .odds-rolls {

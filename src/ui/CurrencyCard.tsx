@@ -1,14 +1,17 @@
 /**
- * Odds panel: what the hovered/held currency would do to the current item —
- * removal chances per existing modifier, addition chances per mod family,
- * Vaal outcome split, guaranteed mods. All numbers come from engine/odds.ts,
- * which shares its plumbing with apply().
+ * Currency tooltip card, game style: the currency's name and icon (plus
+ * stack count for placed stacks), then what it would do to the target item
+ * right now — removal chances per existing modifier, addition chances per
+ * mod family, Vaal outcome split, guaranteed mods — and a short usage hint.
+ * The game explains currency exclusively through tooltips; so do we. All
+ * numbers come from engine/odds.ts, which shares its plumbing with apply().
  */
 import { useMemo } from "react";
 import type { CurrencyItem } from "../data/schema.ts";
 import type { EngineData } from "../engine/data.ts";
 import type { Item } from "../engine/item.ts";
 import { oddsFor, type AdditionOdds, type Odds } from "../engine/odds.ts";
+import { itemHeader } from "./itemname.ts";
 import { familyText, renderModText } from "./modtext.ts";
 
 const MAX_FAMILIES = 12;
@@ -62,27 +65,10 @@ function AdditionList({ addition, heading }: { addition: AdditionOdds; heading: 
   );
 }
 
-export function OddsPanel({ data, item, currencyId, omens, currency }: {
-  data: EngineData;
-  item: Item;
-  currencyId: string;
-  omens: readonly string[];
-  currency: CurrencyItem[];
-}) {
-  const odds: Odds | undefined = useMemo(
-    () => oddsFor(data, item, currencyId, new Set(omens)),
-    [data, item, currencyId, omens],
-  );
-  if (!odds) return null;
-  const info = currency.find((c) => c.id === currencyId);
-
+/** The effect section body for a pre-computed odds result. */
+function OddsBody({ data, odds }: { data: EngineData; odds: Odds }) {
   return (
-    <aside className="odds-panel">
-      <h3>
-        {info && <img src={info.icon} alt="" />}
-        <span>{info?.name ?? currencyId}</span>
-      </h3>
-
+    <>
       {odds.kind === "blocked" && <p className="odds-blocked">{odds.reason}</p>}
 
       {odds.kind === "outcomes" && (
@@ -150,6 +136,52 @@ export function OddsPanel({ data, item, currencyId, omens, currency }: {
             {note}
           </p>
         ))}
-    </aside>
+    </>
+  );
+}
+
+export function CurrencyCard({
+  data,
+  info,
+  item,
+  omens,
+  count,
+  note,
+  noteKind = "info",
+}: {
+  data: EngineData;
+  info: CurrencyItem;
+  /** The item the effect is previewed against — the active craft. */
+  item?: Item;
+  omens: readonly string[];
+  /** Present for placed stacks — shown as count / stack size. */
+  count?: number;
+  /** Usage hint shown at the bottom (left/right click, armed state). */
+  note?: string;
+  noteKind?: "ok" | "blocked" | "info";
+}) {
+  const odds: Odds | undefined = useMemo(
+    () => (item ? oddsFor(data, item, info.id, new Set(omens)) : undefined),
+    [data, item, info.id, omens],
+  );
+  return (
+    <div className="currency-card">
+      <div className="currency-head">
+        <img src={info.icon} alt="" />
+        <span className="currency-name">{info.name}</span>
+        {count !== undefined && (
+          <span className="currency-stack">
+            {count}/{info.stack ?? 10}
+          </span>
+        )}
+      </div>
+      {odds && item && (
+        <div className="currency-effect">
+          <h4 className="currency-target">On {itemHeader(data, item).name}</h4>
+          <OddsBody data={data} odds={odds} />
+        </div>
+      )}
+      {note && <div className={`tooltip-note tooltip-${noteKind}`}>{note}</div>}
+    </div>
   );
 }

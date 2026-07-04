@@ -13,7 +13,7 @@ import { BasePicker } from "./ui/BasePicker.tsx";
 import { ItemCard } from "./ui/ItemCard.tsx";
 import { InventoryPanel } from "./ui/InventoryPanel.tsx";
 import { ItemTile } from "./ui/Tile.tsx";
-import { OddsPanel } from "./ui/OddsPanel.tsx";
+import { CurrencyCard } from "./ui/CurrencyCard.tsx";
 import { OMEN } from "./engine/mechanics.ts";
 import { StashPanel } from "./ui/StashPanel.tsx";
 import { StepLog } from "./ui/StepLog.tsx";
@@ -39,7 +39,6 @@ function CursorGhost({ children }: { children: ReactNode }) {
 
 export default function App() {
   const app = useApp();
-  const [hovered, setHovered] = useState<string | undefined>();
   const [hoveredObj, setHoveredObj] = useState<{ key: number; x: number; y: number } | undefined>();
   const [copied, setCopied] = useState(false);
   // Advanced mod descriptions: held while Alt is down (like the game), or
@@ -114,19 +113,20 @@ export default function App() {
       : currentItem(active.session)
     : undefined;
   const nextStep = replaying && active ? active.session.steps[app.replayIndex!] : undefined;
-  // Odds react to the hovered slot; otherwise the armed currency (live) or
-  // the tutorial's next step.
-  const oddsCurrency = hovered ?? (replaying ? nextStep?.currencyId : app.selectedCurrency);
-  const oddsOmens = hovered
-    ? app.armedOmens
-    : replaying
-      ? (nextStep?.omens ?? [])
-      : app.armedOmens;
 
-  // The item tooltip shows only while hovering an item, like the game.
+  // Tooltips show only while hovering, like the game: the item card over
+  // crafts, the currency effect card over placed stacks.
   const hoveredCraft = craftByKey(app.objects, hoveredObj?.key);
   const tooltipItem =
     hoveredCraft && app.heldKey !== hoveredCraft.key ? currentItem(hoveredCraft.session) : undefined;
+  const hoveredObject = objectByKey(app.objects, hoveredObj?.key);
+  const hoveredStack =
+    hoveredObject && !isCraft(hoveredObject) && app.heldKey !== hoveredObject.key
+      ? hoveredObject
+      : undefined;
+  const hoveredStackInfo = hoveredStack
+    ? app.currency.find((c) => c.id === hoveredStack.currencyId)
+    : undefined;
   const tooltipStyle = hoveredObj
     ? {
         left: Math.max(8, Math.min(hoveredObj.x + 14, window.innerWidth - 480)),
@@ -212,7 +212,6 @@ export default function App() {
           armedOmens={replaying ? (nextStep?.omens ?? []) : app.armedOmens}
           onSelect={app.selectCurrency}
           onToggleOmen={app.toggleOmen}
-          onHover={setHovered}
           onHoverObject={(key, at) =>
             setHoveredObj(key !== undefined && at ? { key, ...at } : undefined)
           }
@@ -260,15 +259,6 @@ export default function App() {
               })}
             </div>
           )}
-          {activeItem && oddsCurrency && (
-            <OddsPanel
-              data={app.data}
-              item={activeItem}
-              currencyId={oddsCurrency}
-              omens={oddsOmens}
-              currency={app.currency}
-            />
-          )}
           {active && (
             <StepLog
               data={app.data}
@@ -295,6 +285,24 @@ export default function App() {
             item={tooltipItem}
             advanced={altHeld || advancedPinned}
             runeIcons={runeIcons}
+          />
+        </div>
+      )}
+
+      {hoveredStack && hoveredStackInfo && tooltipStyle && !replaying && (
+        <div className="stash-tooltip" style={tooltipStyle}>
+          <CurrencyCard
+            data={app.data}
+            info={hoveredStackInfo}
+            item={activeItem}
+            omens={app.armedOmens}
+            count={hoveredStack.count}
+            note={
+              app.selectedStack === hoveredStack.key
+                ? "Armed — click the item to apply, Escape to disarm"
+                : "Right-click to use from this stack • click to pick up"
+            }
+            noteKind={app.selectedStack === hoveredStack.key ? "ok" : "info"}
           />
         </div>
       )}
