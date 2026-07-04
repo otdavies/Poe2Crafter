@@ -22,6 +22,8 @@ export class EngineData {
   readonly baseById: ReadonlyMap<string, BaseItem>;
   /** The general craftable pool: prefixes/suffixes rollable by currency. */
   readonly affixPool: readonly Mod[];
+  /** Desecrated modifiers — only revealed by abyssal bones, never rolled. */
+  readonly desecratedPool: readonly Mod[];
   /** Vaal Orb implicit pool. */
   readonly corruptedPool: readonly Mod[];
   /** Essences/emotions keyed by trade currency id. */
@@ -37,7 +39,13 @@ export class EngineData {
     this.modById = new Map(mods.map((m) => [m.id, m]));
     this.baseById = new Map(bases.map((b) => [b.id, b]));
     this.affixPool = mods.filter(
-      (m) => (m.generation === "prefix" || m.generation === "suffix") && !m.essenceOnly,
+      (m) =>
+        (m.generation === "prefix" || m.generation === "suffix") &&
+        !m.essenceOnly &&
+        !m.desecrated,
+    );
+    this.desecratedPool = mods.filter(
+      (m) => m.desecrated && (m.generation === "prefix" || m.generation === "suffix"),
     );
     this.corruptedPool = mods.filter((m) => m.generation === "corrupted");
     this.essenceByCurrencyId = new Map(essences.map((e) => [tradeSlug(e.name), e]));

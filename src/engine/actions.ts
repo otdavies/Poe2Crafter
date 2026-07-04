@@ -26,8 +26,15 @@ import {
   type RolledMod,
 } from "./item.ts";
 import {
+  canDesecrate,
+  commitDesecration,
+  desecrationReveal,
+  putrefy,
+} from "./desecrate.ts";
+import {
   ALCHEMY_MOD_COUNT,
   ALLOYS,
+  BONES,
   CATALYSTS,
   catalystQualityPerUse,
   essenceTier,
@@ -40,6 +47,7 @@ import {
   VAAL_CHAOS_TIMES,
   VAAL_OUTCOMES,
   type AlloySpec,
+  type BoneSpec,
   type CatalystSpec,
   type CurrencyTier,
 } from "./mechanics.ts";
@@ -93,7 +101,8 @@ export type ActionKind =
   | "essence"
   | "alloy"
   | "emotion"
-  | "catalyst";
+  | "catalyst"
+  | "desecrate";
 
 export interface CraftAction {
   /** trade API currency id, e.g. "chaos" — the key the UI dispatches on. */
@@ -176,6 +185,15 @@ export function planRemoval(
   let candidates = item.explicits.filter((m) => !m.fractured);
   if (side) candidates = candidates.filter((m) => data.mod(m.modId).generation === side);
 
+  // Omen of Light: "your next Orb of Annulment removes only Desecrated
+  // modifiers" (see mechanics.OMEN.light).
+  let lightOnly = false;
+  if (kind === "annul" && omens.has(OMEN.light)) {
+    lightOnly = true;
+    consumed.push(OMEN.light);
+    candidates = candidates.filter((m) => data.mod(m.modId).desecrated);
+  }
+
   let whittling = false;
   if (kind === "chaos" && omens.has(OMEN.whittling)) {
     whittling = true;
@@ -184,9 +202,11 @@ export function planRemoval(
 
   const blocked =
     candidates.length === 0
-      ? side
-        ? `No removable ${side} modifiers`
-        : "No removable modifiers"
+      ? lightOnly
+        ? "No Desecrated modifiers to remove"
+        : side
+          ? `No removable ${side} modifiers`
+          : "No removable modifiers"
       : null;
   return { candidates, whittling, consumed, blocked };
 }
@@ -834,6 +854,29 @@ function emotionAction(currencyId: string, emotion: DistilledEmotion): CraftActi
   };
 }
 
+/**
+ * Abyssal bones: desecrate + Well of Souls reveal, collapsed into one
+ * action. apply() auto-picks uniformly among the revealed options — the UI
+ * store intercepts kind "desecrate" and runs the two-phase flow from
+ * desecrate.ts instead, so the player makes the choice; both paths share
+ * the same reveal/commit plumbing.
+ */
+function boneAction(currencyId: string, spec: BoneSpec): CraftAction {
+  return {
+    currencyId,
+    kind: "desecrate",
+    canApply: (data, item, omens = NO_OMENS) => canDesecrate(data, item, spec, omens),
+    apply(data, item, rng, omens = NO_OMENS) {
+      if (omens.has(OMEN.putrefaction)) {
+        return putrefy(data, item, rng, spec, omens);
+      }
+      const reveal = desecrationReveal(data, item, rng, spec, omens);
+      const choice = rollInt(rng, 0, reveal.options.length - 1);
+      return commitDesecration(data, item, reveal, choice, rng);
+    },
+  };
+}
+
 /** Catalysts: quality that boosts matching-tag modifier values. */
 function catalystAction(currencyId: string, spec: CatalystSpec): CraftAction {
   return {
@@ -908,5 +951,7 @@ export function actionFor(data: EngineData, currencyId: string): CraftAction | u
   if (catalyst) return catalystAction(currencyId, catalyst);
   const alloy = ALLOYS.get(currencyId);
   if (alloy) return alloyAction(currencyId, alloy);
+  const bone = BONES.get(currencyId);
+  if (bone) return boneAction(currencyId, bone);
   return undefined;
 }

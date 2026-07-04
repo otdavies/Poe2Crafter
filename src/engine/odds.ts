@@ -22,12 +22,15 @@ import {
   type RemovalPlan,
 } from "./actions.ts";
 import type { EngineData } from "./data.ts";
-import { itemTags, maxQuality, type Item, type RolledMod } from "./item.ts";
+import { desecrationPool, desecrationRemovalCandidates } from "./desecrate.ts";
+import { affixLimit, itemTags, maxQuality, type Item, type RolledMod } from "./item.ts";
 import {
   ALCHEMY_MOD_COUNT,
   ALLOYS,
+  BONES,
   CATALYSTS,
   catalystQualityPerUse,
+  DESECRATION_CHOICES,
   essenceTier,
   OMEN,
   SANCTIFY_MULTIPLIER,
@@ -346,6 +349,48 @@ export function oddsFor(
         notes: [
           `+${perUse}% quality per use (max ${maxQuality(data, item)}%), boosting ${spec.tag} modifiers`,
           ...(replaces ? ["Replaces the item's existing quality type, starting from zero"] : []),
+        ],
+      });
+    }
+    case "desecrate": {
+      const spec = BONES.get(currencyId)!;
+      if (omens.has(OMEN.putrefaction)) {
+        return craft({
+          addition: additionOdds(
+            [{ p: 1, pool: desecrationPool(data, { ...item, explicits: [] }, spec, omens) }],
+            2 * affixLimit(data, item),
+          ),
+          notes: [
+            "Omen of Putrefaction: ALL modifiers are replaced with Desecrated modifiers and the item is corrupted",
+            "Odds are per modifier; the pool narrows as each lands",
+          ],
+        });
+      }
+      // Removal only happens when the item is full; the offer is drawn from
+      // the post-removal pool, mixed exactly over each possible removal.
+      const removalTargets = desecrationRemovalCandidates(data, item, omens);
+      const pools =
+        removalTargets.length > 0
+          ? removalTargets.map((target) => ({
+              p: 1 / removalTargets.length,
+              pool: desecrationPool(data, withoutMod(item, target), spec, omens),
+            }))
+          : [{ p: 1, pool: desecrationPool(data, item, spec, omens) }];
+      const removal: RemovalOdds | undefined =
+        removalTargets.length > 0
+          ? {
+              verb: "remove",
+              candidates: item.explicits.map((mod) => ({
+                mod,
+                chance: removalTargets.includes(mod) ? 1 / removalTargets.length : 0,
+              })),
+            }
+          : undefined;
+      return craft({
+        removal,
+        addition: additionOdds(pools, 1),
+        notes: [
+          `The Well of Souls reveals ${DESECRATION_CHOICES} of these — you keep one (chances shown are per revealed slot)`,
         ],
       });
     }

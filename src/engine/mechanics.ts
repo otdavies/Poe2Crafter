@@ -4,6 +4,7 @@
  * is deliberately the single place where PoE2 0.5.x rules live by hand;
  * every constant cites its source. Verify on each patch.
  */
+import type { AbyssalLord } from "../data/schema.ts";
 
 /**
  * Greater/Perfect currency variants only roll mods whose required level is
@@ -106,6 +107,30 @@ export const OMEN = {
    * TODO(0.5-verify).
    */
   catalysingExaltation: "omen-of-catalysing-exaltation",
+
+  // --- Desecration omens (abyss, 0.3+; 0.5-current) -------------------------
+  // Effects verified July 2026 via mmoso "Well of Souls and Desecrated
+  // Modifiers Explained", conquestcapped abyss guide, poe2wiki
+  // Desecrated_modifier (search-verified — pages themselves bot-walled).
+  /** Desecration reveals only Ulaman modifiers. */
+  sovereign: "omen-of-the-sovereign",
+  /** Desecration reveals only Amanamu modifiers. */
+  liege: "omen-of-the-liege",
+  /** Desecration reveals only Kurgal modifiers. */
+  blackblooded: "omen-of-the-blackblooded",
+  /** Desecration adds only a prefix / only a suffix. */
+  sinistralNecromancy: "omen-of-sinistral-necromancy",
+  dextralNecromancy: "omen-of-dextral-necromancy",
+  /**
+   * "Replaces all modifiers with six Desecrated modifiers and corrupts the
+   * item" (equipment: 3 prefixes + 3 suffixes; jewels use their own affix
+   * limit). TODO(0.5-verify): exact interaction with fractured mods.
+   */
+  putrefaction: "omen-of-putrefaction",
+  /** The Well of Souls reveal can be rerolled (one extra set of choices). */
+  abyssalEchoes: "omen-of-abyssal-echoes",
+  /** Orb of Annulment removes only Desecrated modifiers. */
+  light: "omen-of-light",
 } as const;
 export type OmenId = (typeof OMEN)[keyof typeof OMEN];
 
@@ -320,6 +345,70 @@ export const ALLOYS: ReadonlyMap<string, AlloySpec> = new Map([
     [["Spear"], ["AlloyMeleeStrikeRange1"]],
     [["Talisman"], ["AlloyLightningDamageIgnites1"]],
   ])],
+]);
+
+/**
+ * Desecration (abyssal bones + Well of Souls, 0.3 "The Third Edict",
+ * current in 0.5). Using a bone on a matching RARE item desecrates it; the
+ * Well of Souls reveal offers a choice of THREE desecrated modifiers and
+ * you keep exactly one. If all affix slots are full, a random modifier is
+ * removed first to make room. An item can hold only ONE desecrated
+ * modifier ("items with Desecrated Modifiers cannot be Desecrated again").
+ * Corrupted/Sanctified items can't be desecrated. The simulator collapses
+ * bone + Well visit into a single action.
+ *
+ * Bone matrix (sources, July 2026: poe.ninja 0.5 bone list, timesaver.gg
+ * desecrated-currency guide, game8 550255, u4n cranium/vertebrae pages,
+ * playerauctions + mmoso mechanics guides):
+ * - Jawbone -> weapons, Rib -> armour, Collarbone -> jewellery,
+ *   Preserved Cranium -> jewels, Preserved Vertebrae -> waystones (not
+ *   simulated — no waystones here).
+ * - Gnawed: only desecrates items of item level 64 or lower.
+ * - Preserved: no restriction.
+ * - Ancient: revealed modifiers have a minimum modifier level of 40.
+ *   NOTE: vacuous against the current datamine (every equipment desecrated
+ *   mod requires level 65) but encoded for faithfulness. The same datamine
+ *   proves reveals ignore the usual item-level gate: Gnawed bones (ilvl
+ *   <= 64 items) grant mods whose required level is 65.
+ * TODO(0.5-verify): whether quivers/talismans sit in the jawbone or
+ * collarbone matrix — datamined spawn tags cover both classes.
+ */
+export interface BoneSpec {
+  /** Item classes this bone can desecrate. */
+  itemClasses: readonly string[];
+  /** Gnawed: only items of this level or lower can be desecrated. */
+  maxItemLevel?: number;
+  /** Ancient: revealed mods must require at least this level. */
+  minModLevel?: number;
+}
+
+export const GNAWED_MAX_ITEM_LEVEL = 64;
+export const ANCIENT_MIN_MOD_LEVEL = 40;
+/** The Well of Souls reveals this many modifiers; you choose one. */
+export const DESECRATION_CHOICES = 3;
+
+const JAWBONE = [...ALL_WEAPONS, "Quiver"] as const;
+const RIB = BODY_ARMOUR_SLOTS;
+const COLLARBONE = ["Ring", "Amulet", "Belt"] as const;
+
+export const BONES: ReadonlyMap<string, BoneSpec> = new Map([
+  ["gnawed-jawbone", { itemClasses: JAWBONE, maxItemLevel: GNAWED_MAX_ITEM_LEVEL }],
+  ["gnawed-rib", { itemClasses: RIB, maxItemLevel: GNAWED_MAX_ITEM_LEVEL }],
+  ["gnawed-collarbone", { itemClasses: COLLARBONE, maxItemLevel: GNAWED_MAX_ITEM_LEVEL }],
+  ["preserved-jawbone", { itemClasses: JAWBONE }],
+  ["preserved-rib", { itemClasses: RIB }],
+  ["preserved-collarbone", { itemClasses: COLLARBONE }],
+  ["preserved-cranium", { itemClasses: ["Jewel"] }],
+  ["ancient-jawbone", { itemClasses: JAWBONE, minModLevel: ANCIENT_MIN_MOD_LEVEL }],
+  ["ancient-rib", { itemClasses: RIB, minModLevel: ANCIENT_MIN_MOD_LEVEL }],
+  ["ancient-collarbone", { itemClasses: COLLARBONE, minModLevel: ANCIENT_MIN_MOD_LEVEL }],
+]);
+
+/** Omen -> the abyssal lord whose modifiers the reveal is restricted to. */
+export const LORD_OMENS: ReadonlyMap<string, AbyssalLord> = new Map([
+  [OMEN.sovereign, "ulaman"],
+  [OMEN.liege, "amanamu"],
+  [OMEN.blackblooded, "kurgal"],
 ]);
 
 /**
