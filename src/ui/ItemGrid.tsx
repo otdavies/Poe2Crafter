@@ -1,43 +1,52 @@
 /**
- * A game container grid — the character backpack (12×5) or a stash tab
- * (12×12). Items are tiles spanning their datamined w×h cells. Interaction
- * mimics the game: click picks an item up onto the cursor, a ghost shows
- * where it would land (centred under the cursor, red when blocked), click
- * again puts it down or swaps with a single blocking item, ctrl+click
- * quick-moves between containers, and clicking with a held currency crafts.
+ * A game container grid — the character backpack (12×5), a stash tab
+ * (12×12), or the currency tab's central crafting slot / wildcard slots.
+ * Items and currency stacks are tiles spanning their real cells.
+ * Interaction mimics the game: left-click picks things up onto the cursor
+ * (a snap ghost shows where they'd land, red when blocked), click again
+ * puts them down — swapping with a single blocker or merging same-currency
+ * stacks — ctrl+click quick-moves between containers, right-click a stack
+ * readies its currency for use, and clicking an item with a currency armed
+ * crafts it.
  */
 import { useState, type MouseEvent } from "react";
-import { canPlace, itemRect } from "../engine/grid.ts";
+import { canPlace } from "../engine/grid.ts";
 import {
-  craftByKey,
-  currentItem,
   GRIDS,
+  isCraft,
+  currentItem,
+  objectByKey,
+  objectRect,
   takenRects,
   useApp,
   type Container,
 } from "../state/store.ts";
-import { tileProps } from "./tile.ts";
+import { ItemTile, StackTile } from "./Tile.tsx";
 
 export function ItemGrid({
   container,
-  onHoverCraft,
+  runeIcons,
+  onHoverObject,
 }: {
   container: Container;
-  /** The centre column previews the hovered craft's card. */
-  onHoverCraft?: (key: number | undefined) => void;
+  runeIcons?: ReadonlyMap<string, string>;
+  /** The hovered craft drives the floating item tooltip. */
+  onHoverObject?: (key: number | undefined, at?: { x: number; y: number }) => void;
 }) {
   const data = useApp((s) => s.data)!;
-  const crafts = useApp((s) => s.crafts);
+  const currency = useApp((s) => s.currency);
+  const objects = useApp((s) => s.objects);
   const heldKey = useApp((s) => s.heldKey);
   const activeKey = useApp((s) => s.activeKey);
   const selectedCurrency = useApp((s) => s.selectedCurrency);
+  const selectedStack = useApp((s) => s.selectedStack);
   const replaying = useApp((s) => s.replayIndex !== undefined);
   const grid = GRIDS[container];
   const [hoverCell, setHoverCell] = useState<{ x: number; y: number } | undefined>();
 
-  const held = craftByKey(crafts, heldKey);
-  const heldItem = held ? currentItem(held.session) : undefined;
-  const placed = crafts.filter((c) => c.place?.container === container);
+  const held = objectByKey(objects, heldKey);
+  const placed = objects.filter((o) => o.place?.container === container);
+  const armedRune = selectedCurrency ? data.runeById.get(selectedCurrency) : undefined;
 
   /** Grid cell under the cursor. */
   const cellAt = (e: MouseEvent<HTMLElement>) => {
@@ -48,10 +57,10 @@ export function ItemGrid({
     return { x, y };
   };
 
-  /** Held items drop centred under the cursor, clamped into the grid. */
+  /** Held objects drop centred under the cursor, clamped into the grid. */
   const snapped = (cell: { x: number; y: number }) => {
-    if (!data || !heldItem) return cell;
-    const { w, h } = itemRect(data, heldItem, 0, 0);
+    if (!held) return cell;
+    const { w, h } = objectRect(data, held, 0, 0);
     return {
       x: Math.max(0, Math.min(cell.x - Math.floor((w - 1) / 2), grid.cols - w)),
       y: Math.max(0, Math.min(cell.y - Math.floor((h - 1) / 2), grid.rows - h)),
@@ -59,19 +68,25 @@ export function ItemGrid({
   };
 
   const ghost = (() => {
-    if (!heldItem || !hoverCell) return undefined;
-    const at = snapped(hoverCell);
-    const rect = itemRect(data, heldItem, at.x, at.y);
-    const free = canPlace(rect, takenRects(data, crafts, container, heldKey), grid);
-    // A single blocker still works — the game swaps it onto the cursor.
-    const blockers = placed.filter((c) => {
-      const r = itemRect(data, currentItem(c.session), c.place!.x, c.place!.y);
+    if (!held || !hoverCell) return undefined;
+    const at = container === "curtab" ? { x: 0, y: 0 } : snapped(hoverCell);
+    const rect = objectRect(data, held, at.x, at.y);
+    const free = canPlace(rect, takenRects(data, objects, container, held.key), grid);
+    const blockers = placed.filter((o) => {
+      const r = objectRect(data, o, o.place!.x, o.place!.y);
       return rect.x < r.x + r.w && r.x < rect.x + rect.w && rect.y < r.y + r.h && r.y < rect.y + rect.h;
     });
+    const mergeable =
+      blockers.length === 1 &&
+      !isCraft(held) &&
+      !isCraft(blockers[0]) &&
+      held.currencyId === blockers[0].currencyId;
     const valid =
-      free ||
-      (blockers.length === 1 &&
-        canPlace(rect, takenRects(data, crafts, container, blockers[0].key), grid));
+      (container === "curtab" ? isCraft(held) : container === "curwild" ? !isCraft(held) : true) &&
+      (free ||
+        mergeable ||
+        (blockers.length === 1 &&
+          canPlace(rect, takenRects(data, objects, container, blockers[0].key), grid)));
     return { rect, valid };
   })();
 
@@ -83,20 +98,34 @@ export function ItemGrid({
     useApp.getState().putDown(container, at.x, at.y);
   };
 
-  const clickItem = (e: MouseEvent, key: number) => {
+  const clickObject = (e: MouseEvent, key: number) => {
     e.stopPropagation();
     if (replaying) {
       useApp.getState().setActive(key);
       return;
     }
+    const obj = objectByKey(objects, key);
+    if (!obj) return;
     if (e.ctrlKey || e.metaKey) useApp.getState().quickMove(key);
-    else if (selectedCurrency) useApp.getState().applyTo(key);
+    else if (selectedCurrency && isCraft(obj)) useApp.getState().applyTo(key);
     else useApp.getState().pickUp(key);
+  };
+
+  /** Right-click a stack readies its currency, consuming from the stack. */
+  const armStack = (e: MouseEvent, key: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (replaying) return;
+    const obj = objectByKey(objects, key);
+    if (!obj || isCraft(obj)) return;
+    const s = useApp.getState();
+    if (s.selectedStack === key) s.selectCurrency(undefined);
+    else s.selectCurrency(obj.currencyId, key);
   };
 
   return (
     <div
-      className={`item-grid ${heldKey !== undefined ? "grid-holding" : ""}`}
+      className={`item-grid grid-${container} ${heldKey !== undefined ? "grid-holding" : ""}`}
       style={{
         gridTemplateColumns: `repeat(${grid.cols}, var(--cell))`,
         gridTemplateRows: `repeat(${grid.rows}, var(--cell))`,
@@ -105,25 +134,54 @@ export function ItemGrid({
       onMouseMove={(e) => setHoverCell(cellAt(e))}
       onMouseLeave={() => setHoverCell(undefined)}
     >
-      {placed.map((c) => {
-        const item = currentItem(c.session);
-        const rect = itemRect(data, item, c.place!.x, c.place!.y);
-        const { label, classes } = tileProps(item, data);
-        if (c.key === activeKey) classes.push("tile-active");
+      {placed.map((o) => {
+        const rect = objectRect(data, o, o.place!.x, o.place!.y);
+        const style = {
+          gridColumn: `${rect.x + 1} / span ${rect.w}`,
+          gridRow: `${rect.y + 1} / span ${rect.h}`,
+        };
+        if (!isCraft(o)) {
+          const info = currency.find((c) => c.id === o.currencyId);
+          const armed = selectedStack === o.key;
+          return (
+            <button
+              key={o.key}
+              type="button"
+              className={`grid-object ${armed ? "stack-armed" : ""}`}
+              style={style}
+              onClick={(e) => clickObject(e, o.key)}
+              onContextMenu={(e) => armStack(e, o.key)}
+            >
+              <StackTile
+                name={info?.name ?? o.currencyId}
+                icon={info?.icon ?? ""}
+                count={o.count}
+              />
+            </button>
+          );
+        }
+        const item = currentItem(o.session);
         return (
           <button
-            key={c.key}
+            key={o.key}
             type="button"
-            className={classes.join(" ")}
-            style={{
-              gridColumn: `${rect.x + 1} / span ${rect.w}`,
-              gridRow: `${rect.y + 1} / span ${rect.h}`,
+            className={`grid-object ${o.key === activeKey ? "tile-active" : ""}`}
+            style={style}
+            onClick={(e) => clickObject(e, o.key)}
+            onMouseEnter={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              onHoverObject?.(o.key, { x: r.right, y: r.top });
             }}
-            onClick={(e) => clickItem(e, c.key)}
-            onMouseEnter={() => onHoverCraft?.(c.key)}
-            onMouseLeave={() => onHoverCraft?.(undefined)}
+            onMouseLeave={() => onHoverObject?.(undefined)}
           >
-            <span className="tile-name">{label}</span>
+            <ItemTile
+              data={data}
+              item={item}
+              runeIcons={runeIcons}
+              onSocketClick={
+                armedRune && !replaying ? (i) => useApp.getState().applyTo(o.key, i) : undefined
+              }
+            />
           </button>
         );
       })}

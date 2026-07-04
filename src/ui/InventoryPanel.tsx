@@ -7,9 +7,16 @@
  * (two-handers lock the off-hand, bow + quiver excepted).
  */
 import { canEquip, type EquipSlot } from "../engine/grid.ts";
-import { craftByKey, currentItem, useApp } from "../state/store.ts";
+import {
+  craftByKey,
+  currentItem,
+  isCraft,
+  objectByKey,
+  useApp,
+  type Craft,
+} from "../state/store.ts";
 import { ItemGrid } from "./ItemGrid.tsx";
-import { tileProps } from "./tile.ts";
+import { ItemTile } from "./Tile.tsx";
 
 /** Doll slot positions in cell units (12-column grid like the backpack). */
 const DOLL_SLOTS: {
@@ -33,22 +40,26 @@ const DOLL_SLOTS: {
 ];
 
 export function InventoryPanel({
-  onHoverCraft,
+  runeIcons,
+  onHoverObject,
 }: {
-  onHoverCraft?: (key: number | undefined) => void;
+  runeIcons?: ReadonlyMap<string, string>;
+  onHoverObject?: (key: number | undefined, at?: { x: number; y: number }) => void;
 }) {
   const data = useApp((s) => s.data)!;
-  const crafts = useApp((s) => s.crafts);
+  const objects = useApp((s) => s.objects);
   const heldKey = useApp((s) => s.heldKey);
   const activeKey = useApp((s) => s.activeKey);
   const selectedCurrency = useApp((s) => s.selectedCurrency);
   const replaying = useApp((s) => s.replayIndex !== undefined);
 
-  const held = craftByKey(crafts, heldKey);
+  const held = craftByKey(objects, heldKey);
   const heldItem = held ? currentItem(held.session) : undefined;
+  const heldIsStack = heldKey !== undefined && !held && objectByKey(objects, heldKey);
+  const armedRune = selectedCurrency ? data.runeById.get(selectedCurrency) : undefined;
   const others = new Map(
-    crafts
-      .filter((c) => c.equipped && c.key !== heldKey)
+    objects
+      .filter((o): o is Craft => isCraft(o) && o.equipped !== undefined && o.key !== heldKey)
       .map((c) => [c.equipped!, currentItem(c.session)] as const),
   );
 
@@ -58,7 +69,9 @@ export function InventoryPanel({
 
       <div className="doll">
         {DOLL_SLOTS.map(({ slot, label, col, row, w, h }) => {
-          const occupant = crafts.find((c) => c.equipped === slot);
+          const occupant = objects.find(
+            (o): o is Craft => isCraft(o) && o.equipped === slot,
+          );
           const item = occupant ? currentItem(occupant.session) : undefined;
           const accepts =
             heldItem && !replaying ? canEquip(data, heldItem, slot, others) === null : false;
@@ -72,7 +85,7 @@ export function InventoryPanel({
               className={classes.join(" ")}
               style={{ gridColumn: `${col} / span ${w}`, gridRow: `${row} / span ${h}` }}
               onClick={() => {
-                if (replaying) return;
+                if (replaying || heldIsStack) return;
                 if (heldItem) {
                   if (accepts) useApp.getState().equipHeld(slot);
                 } else if (occupant) {
@@ -80,13 +93,24 @@ export function InventoryPanel({
                   else useApp.getState().pickUp(occupant.key);
                 }
               }}
-              onMouseEnter={() => occupant && onHoverCraft?.(occupant.key)}
-              onMouseLeave={() => occupant && onHoverCraft?.(undefined)}
+              onMouseEnter={(e) => {
+                if (!occupant) return;
+                const r = e.currentTarget.getBoundingClientRect();
+                onHoverObject?.(occupant.key, { x: r.left, y: r.top });
+              }}
+              onMouseLeave={() => occupant && onHoverObject?.(undefined)}
             >
-              {item ? (
-                <span className={tileProps(item, data).classes.join(" ")}>
-                  <span className="tile-name">{tileProps(item, data).label}</span>
-                </span>
+              {item && occupant ? (
+                <ItemTile
+                  data={data}
+                  item={item}
+                  runeIcons={runeIcons}
+                  onSocketClick={
+                    armedRune && !replaying
+                      ? (i) => useApp.getState().applyTo(occupant.key, i)
+                      : undefined
+                  }
+                />
               ) : (
                 <span className="slot-label">{label}</span>
               )}
@@ -110,7 +134,7 @@ export function InventoryPanel({
         </span>
       </div>
 
-      <ItemGrid container="inventory" onHoverCraft={onHoverCraft} />
+      <ItemGrid container="inventory" runeIcons={runeIcons} onHoverObject={onHoverObject} />
 
       <div className="inventory-footer">
         <button type="button" className="primary" onClick={() => useApp.getState().openPicker()}>
@@ -123,7 +147,7 @@ export function InventoryPanel({
             title="Destroy the held item"
             onClick={() => useApp.getState().discardHeld()}
           >
-            Destroy item
+            Destroy
           </button>
         )}
       </div>

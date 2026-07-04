@@ -10,6 +10,7 @@ import { actionFor } from "../engine/actions.ts";
 import { tradeSlug, type EngineData } from "../engine/data.ts";
 import type { Item } from "../engine/item.ts";
 import { ALLOYS, BONES, CATALYSTS, CORRUPTED_ESSENCES, OMEN } from "../engine/mechanics.ts";
+import { useApp } from "../state/store.ts";
 import { ItemGrid } from "./ItemGrid.tsx";
 
 const TABS = ["Items", "Currency", "Essences", "Runes", "Omens", "Abyss", "Breach", "Delirium", "Verisium"] as const;
@@ -88,30 +89,21 @@ const BONE_SECTIONS: { title: string; ids: string[] }[] = [
   ] },
 ];
 
-/** Currency tab: dedicated slot groups, like the game's currency tab. */
-const CURRENCY_SECTIONS: { title: string; ids: string[] }[] = [
-  {
-    title: "Orbs of Enhancement",
-    ids: [
-      "transmute", "aug", "alch", "regal", "exalted", "chaos",
-      "annul", "divine", "vaal", "fracturing-orb", "artificers",
-    ],
-  },
-  {
-    title: "Greater Orbs",
-    ids: [
-      "greater-orb-of-transmutation", "greater-orb-of-augmentation",
-      "greater-regal-orb", "greater-exalted-orb", "greater-chaos-orb",
-    ],
-  },
-  {
-    title: "Perfect Orbs",
-    ids: [
-      "perfect-orb-of-transmutation", "perfect-orb-of-augmentation",
-      "perfect-regal-orb", "perfect-exalted-orb", "perfect-chaos-orb",
-    ],
-  },
+/**
+ * Currency tab, arranged like the game's premium tab: every orb family in
+ * its own dedicated slot cluster (base / Greater / Perfect columns), the
+ * single orbs beside them, a central slot to craft an item inside the tab,
+ * and 14 wildcard slots at the bottom for arbitrary stackables.
+ */
+const ORB_FAMILIES: [label: string, row: (string | undefined)[]][] = [
+  ["Transmutation", ["transmute", "greater-orb-of-transmutation", "perfect-orb-of-transmutation"]],
+  ["Augmentation", ["aug", "greater-orb-of-augmentation", "perfect-orb-of-augmentation"]],
+  ["Regal", ["regal", "greater-regal-orb", "perfect-regal-orb"]],
+  ["Exalted", ["exalted", "greater-exalted-orb", "perfect-exalted-orb"]],
+  ["Chaos", ["chaos", "greater-chaos-orb", "perfect-chaos-orb"]],
 ];
+const ORB_TIERS = ["Orb", "Greater", "Perfect"] as const;
+const SINGLE_ORBS = ["alch", "annul", "divine", "vaal", "fracturing-orb", "artificers"];
 
 /** Crafting omens in display order; the rest of the Ritual tab is dimmed. */
 const CRAFT_OMEN_ORDER: string[] = [
@@ -155,7 +147,8 @@ export function StashPanel({
   onHover,
   highlight,
   readOnly = false,
-  onHoverCraft,
+  onHoverObject,
+  runeIcons,
 }: {
   data: EngineData;
   currency: CurrencyItem[];
@@ -170,8 +163,9 @@ export function StashPanel({
   highlight?: { currencyId?: string; omens: readonly string[] };
   /** Tutorial mode: slots are display-only. */
   readOnly?: boolean;
-  /** Items tab: the centre column previews the hovered craft. */
-  onHoverCraft?: (key: number | undefined) => void;
+  /** Items tab: the hovered craft drives the floating item tooltip. */
+  onHoverObject?: (key: number | undefined, at?: { x: number; y: number }) => void;
+  runeIcons?: ReadonlyMap<string, string>;
 }) {
   const [tab, setTab] = useState<TabId>("Currency");
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
@@ -207,13 +201,16 @@ export function StashPanel({
         : "Click to arm for the next currency use";
       noteKind = "info";
     } else if (blocked === undefined) {
-      note = "Not usable in the simulator";
+      note = "Not simulated — left-click takes a stack";
       noteKind = "info";
     } else if (blocked) {
-      note = blocked;
+      note = `${blocked} — left-click takes a stack`;
       noteKind = "blocked";
     } else {
-      note = selected === info.id ? "Click the item to apply" : "Click to pick up";
+      note =
+        selected === info.id
+          ? "Click the item to apply"
+          : "Right-click to use • left-click takes a stack";
     }
     setTooltip({ x: e.clientX, y: e.clientY, name: info.name, note, noteKind });
   };
@@ -236,6 +233,15 @@ export function StashPanel({
         className={classes.join(" ")}
         onClick={() => {
           if (options.dim || readOnly) return;
+          // Left-click takes a stack onto the cursor (currencies are
+          // ordinary stackable items); omens arm instead.
+          if (isOmen) onToggleOmen(id);
+          else useApp.getState().takeStack(id);
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          if (options.dim || readOnly) return;
+          // Right-click readies the currency for use, like the game.
           if (isOmen) onToggleOmen(id);
           else if (blocked === undefined) return;
           else onSelect(selected === id ? undefined : id);
@@ -327,17 +333,39 @@ export function StashPanel({
       <div className="stash-body">
         {tab === "Items" && (
           <div className="stash-section stash-items">
-            <ItemGrid container="stash" onHoverCraft={onHoverCraft} />
+            <ItemGrid container="stash" runeIcons={runeIcons} onHoverObject={onHoverObject} />
           </div>
         )}
 
-        {tab === "Currency" &&
-          CURRENCY_SECTIONS.map((section) => (
-            <div key={section.title} className="stash-section">
-              <h4>{section.title}</h4>
-              <div className="slot-grid">{section.ids.map((id) => slot(id))}</div>
+        {tab === "Currency" && (
+          <>
+            <div className="stash-section">
+              <div className="essence-grid currency-grid">
+                <span className="essence-head" />
+                {ORB_TIERS.map((t) => (
+                  <span key={t} className="essence-head">{t}</span>
+                ))}
+                {ORB_FAMILIES.map(([label, row]) => (
+                  <CurrencyRow key={label} label={label} row={row} slot={slot} />
+                ))}
+              </div>
             </div>
-          ))}
+            <div className="stash-section">
+              <h4>Other orbs</h4>
+              <div className="slot-grid">{SINGLE_ORBS.map((id) => slot(id))}</div>
+            </div>
+            <div className="stash-section currency-special">
+              <div className="currency-craft-slot">
+                <h4>Crafting slot</h4>
+                <ItemGrid container="curtab" runeIcons={runeIcons} onHoverObject={onHoverObject} />
+              </div>
+              <div className="currency-wildcards">
+                <h4>Wildcard slots</h4>
+                <ItemGrid container="curwild" runeIcons={runeIcons} onHoverObject={onHoverObject} />
+              </div>
+            </div>
+          </>
+        )}
 
         {tab === "Essences" && (
           <>
@@ -468,6 +496,23 @@ export function StashPanel({
         </div>
       )}
     </section>
+  );
+}
+
+function CurrencyRow({ label, row, slot }: {
+  label: string;
+  row: (string | undefined)[];
+  slot: (id: string) => React.ReactNode;
+}) {
+  return (
+    <>
+      <span className="essence-type">{label}</span>
+      {row.map((id, i) => (
+        <span key={i} className="essence-cell">
+          {id ? slot(id) : <span className="slot slot-empty" />}
+        </span>
+      ))}
+    </>
   );
 }
 

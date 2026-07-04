@@ -1,16 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { sessionHash } from "./state/share.ts";
 import {
   craftByKey,
   currentItem,
+  isCraft,
   itemAt,
+  objectByKey,
   useApp,
 } from "./state/store.ts";
 import { itemRect } from "./engine/grid.ts";
 import { BasePicker } from "./ui/BasePicker.tsx";
 import { ItemCard } from "./ui/ItemCard.tsx";
 import { InventoryPanel } from "./ui/InventoryPanel.tsx";
-import { tileProps } from "./ui/tile.ts";
+import { ItemTile } from "./ui/Tile.tsx";
 import { OddsPanel } from "./ui/OddsPanel.tsx";
 import { OMEN } from "./engine/mechanics.ts";
 import { StashPanel } from "./ui/StashPanel.tsx";
@@ -19,36 +21,18 @@ import { TutorialBar } from "./ui/TutorialBar.tsx";
 import { WellOfSouls } from "./ui/WellOfSouls.tsx";
 import "./App.css";
 
-/** The held item (or currency) following the cursor, like the game. */
-function CursorGhost({
-  tile,
-  icon,
-}: {
-  tile?: { label: string; classes: string[]; w: number; h: number };
-  icon?: string;
-}) {
+/** Whatever is "on the cursor" follows the mouse, like the game. */
+function CursorGhost({ children }: { children: ReactNode }) {
   const [pos, setPos] = useState<{ x: number; y: number }>();
   useEffect(() => {
     const onMove = (e: MouseEvent) => setPos({ x: e.clientX, y: e.clientY });
     window.addEventListener("mousemove", onMove);
     return () => window.removeEventListener("mousemove", onMove);
   }, []);
-  if (!pos || (!tile && !icon)) return null;
+  if (!pos || !children) return null;
   return (
     <div className="cursor-ghost" style={{ transform: `translate(${pos.x + 10}px, ${pos.y + 8}px)` }}>
-      {tile ? (
-        <span
-          className={tile.classes.join(" ")}
-          style={{
-            width: `calc(var(--cell) * ${tile.w} * 0.75)`,
-            height: `calc(var(--cell) * ${tile.h} * 0.75)`,
-          }}
-        >
-          <span className="tile-name">{tile.label}</span>
-        </span>
-      ) : (
-        <img src={icon} alt="" />
-      )}
+      {children}
     </div>
   );
 }
@@ -56,7 +40,7 @@ function CursorGhost({
 export default function App() {
   const app = useApp();
   const [hovered, setHovered] = useState<string | undefined>();
-  const [hoveredCraft, setHoveredCraft] = useState<number | undefined>();
+  const [hoveredObj, setHoveredObj] = useState<{ key: number; x: number; y: number } | undefined>();
   const [copied, setCopied] = useState(false);
   // Advanced mod descriptions: held while Alt is down (like the game), or
   // pinned via the topbar toggle.
@@ -83,7 +67,7 @@ export default function App() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
       const state = useApp.getState();
       if (e.key === "Escape") {
-        if (state.pickerOpen && state.crafts.length > 0) state.closePicker();
+        if (state.pickerOpen && state.objects.some(isCraft)) state.closePicker();
         else if (state.heldKey !== undefined) state.returnHeld();
         else state.selectCurrency(undefined);
       } else if (e.key === "Delete" && state.heldKey !== undefined) {
@@ -120,19 +104,17 @@ export default function App() {
   }
 
   const replaying = app.replayIndex !== undefined;
-  const active = craftByKey(app.crafts, app.activeKey);
-  const held = craftByKey(app.crafts, app.heldKey);
-  // The centre column acts as the game's item tooltip: it previews whatever
-  // the cursor is over (grid tiles, doll slots, the held item), falling back
-  // to the item being crafted.
-  const displayed = craftByKey(app.crafts, hoveredCraft) ?? held ?? active;
-  const item = displayed
-    ? replaying && displayed.key === app.activeKey
-      ? itemAt(displayed.session, app.replayIndex!)
-      : currentItem(displayed.session)
+  const active = craftByKey(app.objects, app.activeKey);
+  const held = objectByKey(app.objects, app.heldKey);
+  // Odds/steps always follow the item being crafted (the active craft);
+  // during replay they follow the tutorial position.
+  const activeItem = active
+    ? replaying
+      ? itemAt(active.session, app.replayIndex!)
+      : currentItem(active.session)
     : undefined;
   const nextStep = replaying && active ? active.session.steps[app.replayIndex!] : undefined;
-  // Odds react to the hovered slot; otherwise the held currency (live) or
+  // Odds react to the hovered slot; otherwise the armed currency (live) or
   // the tutorial's next step.
   const oddsCurrency = hovered ?? (replaying ? nextStep?.currencyId : app.selectedCurrency);
   const oddsOmens = hovered
@@ -141,17 +123,21 @@ export default function App() {
       ? (nextStep?.omens ?? [])
       : app.armedOmens;
 
-  const heldItem = held ? currentItem(held.session) : undefined;
-  const heldTile = heldItem
+  // The item tooltip shows only while hovering an item, like the game.
+  const hoveredCraft = craftByKey(app.objects, hoveredObj?.key);
+  const tooltipItem =
+    hoveredCraft && app.heldKey !== hoveredCraft.key ? currentItem(hoveredCraft.session) : undefined;
+  const tooltipStyle = hoveredObj
     ? {
-        ...tileProps(heldItem, app.data),
-        ...(() => {
-          const r = itemRect(app.data, heldItem, 0, 0);
-          return { w: r.w, h: r.h };
-        })(),
+        left: Math.max(8, Math.min(hoveredObj.x + 14, window.innerWidth - 480)),
+        top: Math.max(8, Math.min(hoveredObj.y - 24, window.innerHeight - 420)),
       }
     : undefined;
-  const heldCurrencyIcon = app.selectedCurrency
+
+  const heldStackInfo =
+    held && !isCraft(held) ? app.currency.find((c) => c.id === held.currencyId) : undefined;
+  const heldRect = held && isCraft(held) ? itemRect(app.data, currentItem(held.session), 0, 0) : undefined;
+  const armedCurrencyIcon = app.selectedCurrency
     ? app.currency.find((c) => c.id === app.selectedCurrency)?.icon
     : undefined;
 
@@ -165,7 +151,7 @@ export default function App() {
     copyTimer.current = setTimeout(() => setCopied(false), 1600);
   };
 
-  const pickerShown = app.pickerOpen || app.crafts.length === 0;
+  const pickerShown = app.pickerOpen || !app.objects.some(isCraft);
 
   return (
     <div className={`bench ${app.selectedCurrency ? "holding-currency" : ""} ${app.heldKey !== undefined ? "holding-item" : ""}`}>
@@ -221,13 +207,16 @@ export default function App() {
         <StashPanel
           data={app.data}
           currency={app.currency}
-          item={item}
+          item={activeItem}
           selected={app.selectedCurrency}
           armedOmens={replaying ? (nextStep?.omens ?? []) : app.armedOmens}
           onSelect={app.selectCurrency}
           onToggleOmen={app.toggleOmen}
           onHover={setHovered}
-          onHoverCraft={setHoveredCraft}
+          onHoverObject={(key, at) =>
+            setHoveredObj(key !== undefined && at ? { key, ...at } : undefined)
+          }
+          runeIcons={runeIcons}
           highlight={
             nextStep ? { currencyId: nextStep.currencyId, omens: nextStep.omens } : undefined
           }
@@ -235,59 +224,50 @@ export default function App() {
         />
 
         <section className="item-area">
-          {replaying && active && (
-            <TutorialBar
-              currency={app.currency}
-              session={active.session}
-              index={app.replayIndex!}
-              onStep={app.setReplay}
-              onExit={app.exitReplay}
-            />
-          )}
-          {item && displayed && (
+          {replaying && active && activeItem && (
             <>
+              <TutorialBar
+                currency={app.currency}
+                session={active.session}
+                index={app.replayIndex!}
+                onStep={app.setReplay}
+                onExit={app.exitReplay}
+              />
               <ItemCard
                 data={app.data}
-                item={item}
-                active={!replaying && Boolean(app.selectedCurrency)}
-                onClick={() => app.applyTo(displayed.key)}
+                item={activeItem}
                 advanced={altHeld || advancedPinned}
                 runeIcons={runeIcons}
-                onSocketClick={
-                  !replaying && app.selectedCurrency && app.data.runeById.has(app.selectedCurrency)
-                    ? (i) => app.applyTo(displayed.key, i)
-                    : undefined
-                }
               />
-              {!replaying && app.armedOmens.length > 0 && (
-                <div className="armed-omens">
-                  <span className="armed-label">Active omens</span>
-                  {app.armedOmens.map((id) => {
-                    const info = app.currency.find((c) => c.id === id);
-                    return (
-                      <button
-                        key={id}
-                        type="button"
-                        className="armed-omen"
-                        title={`${info?.name ?? id} — click to disarm`}
-                        onClick={() => app.toggleOmen(id)}
-                      >
-                        {info ? <img src={info.icon} alt={info.name} /> : id}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              {oddsCurrency && (
-                <OddsPanel
-                  data={app.data}
-                  item={item}
-                  currencyId={oddsCurrency}
-                  omens={oddsOmens}
-                  currency={app.currency}
-                />
-              )}
             </>
+          )}
+          {!replaying && app.armedOmens.length > 0 && (
+            <div className="armed-omens">
+              <span className="armed-label">Active omens</span>
+              {app.armedOmens.map((id) => {
+                const info = app.currency.find((c) => c.id === id);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    className="armed-omen"
+                    title={`${info?.name ?? id} — click to disarm`}
+                    onClick={() => app.toggleOmen(id)}
+                  >
+                    {info ? <img src={info.icon} alt={info.name} /> : id}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {activeItem && oddsCurrency && (
+            <OddsPanel
+              data={app.data}
+              item={activeItem}
+              currencyId={oddsCurrency}
+              omens={oddsOmens}
+              currency={app.currency}
+            />
           )}
           {active && (
             <StepLog
@@ -300,15 +280,31 @@ export default function App() {
           )}
         </section>
 
-        <InventoryPanel onHoverCraft={setHoveredCraft} />
+        <InventoryPanel
+          runeIcons={runeIcons}
+          onHoverObject={(key, at) =>
+            setHoveredObj(key !== undefined && at ? { key, ...at } : undefined)
+          }
+        />
       </main>
+
+      {tooltipItem && tooltipStyle && !replaying && (
+        <div className="item-tooltip" style={tooltipStyle}>
+          <ItemCard
+            data={app.data}
+            item={tooltipItem}
+            advanced={altHeld || advancedPinned}
+            runeIcons={runeIcons}
+          />
+        </div>
+      )}
 
       {pickerShown && (
         <div className="picker-overlay">
           <BasePicker
             data={app.data}
             onStart={app.startCraft}
-            onCancel={app.crafts.length > 0 ? app.closePicker : undefined}
+            onCancel={app.objects.some(isCraft) ? app.closePicker : undefined}
           />
         </div>
       )}
@@ -325,7 +321,26 @@ export default function App() {
         />
       )}
 
-      <CursorGhost tile={heldTile} icon={heldCurrencyIcon} />
+      <CursorGhost>
+        {held && isCraft(held) && heldRect ? (
+          <span
+            className="ghost-item"
+            style={{
+              width: `calc(var(--cell) * ${heldRect.w} * 0.85)`,
+              height: `calc(var(--cell) * ${heldRect.h} * 0.85)`,
+            }}
+          >
+            <ItemTile data={app.data} item={currentItem(held.session)} runeIcons={runeIcons} />
+          </span>
+        ) : held && heldStackInfo ? (
+          <span className="ghost-stack">
+            <img src={heldStackInfo.icon} alt="" />
+            <span className="stack-count">{!isCraft(held) ? held.count : ""}</span>
+          </span>
+        ) : armedCurrencyIcon ? (
+          <img src={armedCurrencyIcon} alt="" />
+        ) : null}
+      </CursorGhost>
 
       <footer className="disclaimer">
         Not affiliated with or endorsed by Grinding Gear Games.

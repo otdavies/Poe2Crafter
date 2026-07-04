@@ -1043,9 +1043,24 @@ button.toggled {
   box-shadow: inset 0 0 22px #000c;
 }
 
-/* while an item is held, clicks must land on cells (swap targets the cell) */
-.grid-holding .grid-item {
+/* while an object is held, clicks must land on cells (swap/merge targets
+   the cell) */
+.grid-holding .grid-object {
   pointer-events: none;
+}
+
+/* the clickable wrapper a tile sits in (grid-positioned by the grid) */
+.grid-object {
+  display: flex;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.grid-object > .grid-item {
+  flex: 1;
 }
 
 .grid-item {
@@ -1256,4 +1271,134 @@ button.toggled {
 
 .cursor-ghost img {
   width: 34px;
+}
+
+/* ---- item art / stacks / sockets on tiles (phase 8.5) -------------------- */
+.tile-art {
+  max-width: 96%;
+  max-height: 96%;
+  object-fit: contain;
+  pointer-events: none;
+  position: relative;
+  z-index: 1;
+}
+
+.tile-sockets {
+  position: absolute;
+  bottom: 2px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  z-index: 2;
+}
+
+.tile-socket {
+  width: 13px;
+  height: 13px;
+  padding: 1px;
+  border: 1px solid #6a5c42;
+  border-radius: 50%;
+  background: radial-gradient(circle at 45% 40%, #2c251c 0%, #0c0a07 90%);
+  box-shadow: inset 0 1px 3px #000d;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tile-socket:disabled {
+  pointer-events: none;
+}
+
+.tile-socket img {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.tile-socket-clickable {
+  cursor: pointer;
+  border-color: #7ab8d4;
+  box-shadow: inset 0 1px 3px #000d, 0 0 6px #7ab8d488;
+}
+
+.tile-socket-clickable:hover {
+  border-color: #b8e0f4;
+}
+
+.stack-tile {
+  color: #d8d8d8;
+  border-color: #55504a;
+  background: #24211def;
+}
+
+.stack-icon {
+  max-width: 88%;
+  max-height: 88%;
+  pointer-events: none;
+}
+
+.stack-count {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  font-size: 0.6rem;
+  color: #e8e8ff;
+  text-shadow: 0 1px 2px #000, 0 0 4px #000;
+  z-index: 2;
+}
+
+.stack-armed {
+  outline: 2px solid #d4b060;
+  outline-offset: -1px;
+}
+
+.ghost-item {
+  display: flex;
+}
+
+.ghost-item .grid-item {
+  flex: 1;
+  margin: 0;
+}
+
+.ghost-stack {
+  position: relative;
+  display: inline-flex;
+}
+
+.ghost-stack img {
+  width: 34px;
+}
+
+/* ---- floating item tooltip (shows only while hovering, like the game) --- */
+.item-tooltip {
+  position: fixed;
+  z-index: 90;
+  pointer-events: none;
+  max-height: min(88vh, 720px);
+  overflow: hidden;
+  filter: drop-shadow(0 6px 22px #000d);
+}
+
+/* the currency family grid has three tier columns (Orb/Greater/Perfect) */
+.currency-grid {
+  grid-template-columns: minmax(90px, auto) repeat(3, 46px);
+}
+
+/* ---- currency tab specials: crafting slot + wildcards -------------------- */
+.currency-special {
+  display: flex;
+  gap: 1.2rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.currency-special h4 {
+  margin: 0 0 0.4rem;
+}
+
+.grid-curtab,
+.grid-curwild {
+  margin: 0 auto;
 }
