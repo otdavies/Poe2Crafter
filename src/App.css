@@ -448,6 +448,40 @@ button.primary {
 .mod.fractured { color: #a29162; }
 .mod.boosted { text-shadow: 0 0 8px #8888ff66; }
 
+/* tier chip on the left edge of each affix (PoE2: higher tier = better) */
+.mod {
+  position: relative;
+  /* symmetric gutters so centred text never runs under the chip */
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+.tier-badge {
+  position: absolute;
+  left: 0;
+  top: 0.2rem;
+  min-width: 1.5rem;
+  padding: 0 0.2rem;
+  border: 1px solid #3a3a40;
+  border-radius: 3px;
+  font-size: 0.6rem;
+  line-height: 1.35;
+  color: #7f7f7f;
+  background: #16161a;
+  font-family: system-ui, sans-serif;
+  cursor: help;
+}
+
+.tier-badge.tier-high {
+  color: #c8c8c8;
+  border-color: #55555c;
+}
+
+.tier-badge.tier-top {
+  color: #d4b060;
+  border-color: #6a5a30;
+}
+
 /* advanced descriptions (hold Alt): grey per-mod header + dimmed ranges */
 .mod-info {
   display: block;

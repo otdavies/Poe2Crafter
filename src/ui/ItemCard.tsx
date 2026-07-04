@@ -62,6 +62,22 @@ function withDimmedRanges(text: string): ReactNode {
   );
 }
 
+/** Always-visible tier chip on the left of an affix. PoE2: higher = better. */
+function TierBadge({ data, item, modId }: { data: EngineData; item: Item; modId: string }) {
+  const tier = modTier(data, item, modId);
+  if (!tier) return null;
+  const grade =
+    tier.tier === tier.count ? "tier-top" : tier.tier / tier.count >= 0.75 ? "tier-high" : "";
+  return (
+    <span
+      className={`tier-badge ${grade}`}
+      title={`Tier ${tier.tier} of ${tier.count} — PoE2 tiers count up, higher is better`}
+    >
+      T{tier.tier}
+    </span>
+  );
+}
+
 function ModLine({ data, item, rolled, kind, advanced }: {
   data: EngineData;
   item: Item;
@@ -77,6 +93,7 @@ function ModLine({ data, item, rolled, kind, advanced }: {
     : renderModText(mod.text, values, mod.stats);
   return (
     <li className={`mod ${kind} ${rolled.fractured ? "fractured" : ""} ${boosted ? "boosted" : ""}`}>
+      {kind === "explicit" && <TierBadge data={data} item={item} modId={rolled.modId} />}
       {advanced && <span className="mod-info">{modHeader(data, item, mod)}</span>}
       <span className="mod-text">
         {text}
