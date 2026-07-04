@@ -25,7 +25,8 @@ Zustand + Vitest, oxlint).
 | 6.5 | Desecration: abyssal bones + Well of Souls reveal (user request) | ✅ done |
 | 7 | Runes + sockets (Artificer's Orb, 213 datamined runes, Runes tab) | ✅ done |
 | 8 | Game-mimicry UI: character inventory (equipment doll + 12×5 backpack), stash Items tab (12×12), pick-up/put-down/swap/equip, multi-item crafting (standing user goal: "fully mimic the in-game UI") | ✅ done |
-| 9 | Game-mimicry polish: real item art (needs an icon resolver — PoE2 CDN URLs are signed), weapon-set I/II slots, hold-drag in addition to click-carry, Verisium Anvil once formula is known | **⬅ NEXT** |
+| 8.5 | Game-mimicry follow-ups (user feedback): hover-only item tooltip, item art from poe2wiki, currency tab laid out like the premium tab (family grid + crafting slot + wildcards), currencies as draggable 1×1 stacks (left-click takes, right-click uses, merge/consume) | ✅ done |
+| 9 | Game-mimicry polish: weapon-set I/II slots, hold-drag in addition to click-carry, shift-click stack splitting, Verisium Anvil once formula is known | **⬅ NEXT** |
 
 Recombination is deliberately out of scope (disabled in 0.5 anyway). The
 Verisium Anvil (spend Verisium for Runic Ward / base upgrades) is deferred:
@@ -280,23 +281,41 @@ tooltip column centre, character inventory right.
   returns (`returnHeld`), Delete destroys (`discardHeld`). Crafting
   targets the item you click (`applyTo(key)`), so several items can be
   worked on side by side; undo/tutorial/share act on the ACTIVE craft.
-- Tiles are rarity-framed name plates, not item art: PoE2's CDN serves
-  only signed image URLs (`/gen/image/<payload>/<sig>/…`), so art can't be
-  linked client-side. The canonical art path is compiled into bases.json
-  (`art`) for a future resolver.
+- Item art: PoE2's own CDN serves only signed image URLs
+  (`/gen/image/<payload>/<sig>/…`), so tiles load base art from poe2wiki's
+  `Special:FilePath/<Base Name> inventory icon.png` (stable, unsigned;
+  verified the naming convention exists per item class). On any load
+  failure the tile falls back to a rarity-framed name plate — the sandbox
+  can't reach the wiki, so art was NOT visually verified here; check in a
+  real browser. The canonical `art` path is also compiled into bases.json
+  for a future resolver.
+- The item tooltip shows only while hovering an item (grid tile or doll
+  slot), floating next to it like the game; the persistent centre card
+  remains only in tutorial replay. Rune sockets render as dots on the tile
+  itself and become click targets while a rune is armed.
+- Currencies are ordinary 1×1 stackable items (phase 8.5): left-click a
+  stash slot takes a full stack onto the cursor (datamined stack sizes in
+  currency.json: exalts 20, essences/runes/omens 10), stacks place into
+  any grid, merge onto same-currency stacks up to the cap, quick-move, and
+  swap. RIGHT-click readies a currency for use, exactly like the game —
+  from the stash tab (infinite) or from a placed stack, which is consumed
+  one per application and disarms when it runs out. Omens keep click-to-arm.
+- The Currency tab mirrors the premium tab: orb families as rows ×
+  Orb/Greater/Perfect columns, the single orbs beside them, a central
+  crafting slot (container "curtab", holds one item — crafting works while
+  it sits there) and 14 wildcard slots ("curwild", stackables only).
 - The base picker is now an overlay (auto-opens when nothing is crafted;
-  "New base" in the inventory footer). The centre column doubles as the
-  game tooltip: it previews whatever grid tile / doll slot the cursor is
-  over, falling back to the active craft.
+  "New base" in the inventory footer).
 
 ## Verification bar (keep it)
 
 Every phase so far shipped with: unit/property/golden tests on the engine
-and store (152 passing — omen interaction order, essence family, catalysts, jewels,
+and store (156 passing — omen interaction order, essence family, catalysts, jewels,
 display-unit remapping, odds-vs-empirical, share-link roundtrip, computed
 defences, tier numbering, item naming, advanced-range rendering,
 desecration reveal/omens/putrefaction, rune sockets/limits/folding,
-grid placement/equip rules, store pickup/swap/quick-move),
+grid placement/equip rules, store pickup/swap/quick-move, currency
+stacks take/merge/consume),
 statistical distribution tests where randomness matters, and for pool
 correctness the Craft of Exile oracle (16 item classes, zero unexplained
 differences). New phases should keep the pattern: mechanics
