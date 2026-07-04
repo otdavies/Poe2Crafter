@@ -33,16 +33,25 @@ export interface Source {
   /** Cache filename, also the key used in meta.json provenance. */
   file: string;
   url: string;
+  /**
+   * Same content on a different host, tried when `url` is unreachable —
+   * the repoe-fork Pages site is backed by the repoe-fork/poe2 repo, so
+   * raw.githubusercontent.com serves the identical export (useful in
+   * sandboxes whose proxies only allow github hosts).
+   */
+  fallback?: string;
   /** Send the GGG User-Agent (required for pathofexile.com endpoints). */
   ggg?: boolean;
 }
 
+const REPOE_MIRROR = "https://raw.githubusercontent.com/repoe-fork/poe2/master/data";
+
 export const SOURCES: Source[] = [
   // repoe-fork: dat-file exports (mod pool with spawn weights, bases, tags)
-  { file: "mods.min.json", url: `${REPOE}/mods.min.json` },
-  { file: "base_items.min.json", url: `${REPOE}/base_items.min.json` },
-  { file: "item_classes.min.json", url: `${REPOE}/item_classes.min.json` },
-  { file: "tags.min.json", url: `${REPOE}/tags.min.json` },
+  { file: "mods.min.json", url: `${REPOE}/mods.min.json`, fallback: `${REPOE_MIRROR}/mods.json` },
+  { file: "base_items.min.json", url: `${REPOE}/base_items.min.json`, fallback: `${REPOE_MIRROR}/base_items.json` },
+  { file: "item_classes.min.json", url: `${REPOE}/item_classes.min.json`, fallback: `${REPOE_MIRROR}/item_classes.json` },
+  { file: "tags.min.json", url: `${REPOE}/tags.min.json`, fallback: `${REPOE_MIRROR}/tags.json` },
 
   // Path of Building PoE2 fork: mappings the dat export lacks
   { file: "Essence.lua", url: `${POB}/Essence.lua` },

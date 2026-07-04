@@ -22,21 +22,33 @@ async function exists(path: string): Promise<boolean> {
   );
 }
 
+async function fetchUrl(url: string, ggg?: boolean): Promise<Buffer> {
+  const res = await fetch(url, {
+    headers: ggg ? { "User-Agent": USER_AGENT } : {},
+  });
+  if (!res.ok) {
+    throw new Error(`${url} -> HTTP ${res.status}`);
+  }
+  return Buffer.from(await res.arrayBuffer());
+}
+
 async function fetchSource(source: Source): Promise<void> {
   const dest = join(CACHE_DIR, source.file);
   if (!force && (await exists(dest))) {
     console.log(`  cached  ${source.file}`);
     return;
   }
-  const res = await fetch(source.url, {
-    headers: source.ggg ? { "User-Agent": USER_AGENT } : {},
-  });
-  if (!res.ok) {
-    throw new Error(`${source.url} -> HTTP ${res.status}`);
+  let body: Buffer;
+  try {
+    body = await fetchUrl(source.url, source.ggg);
+  } catch (err) {
+    if (!source.fallback) throw err;
+    console.warn(`  (primary unreachable, trying mirror) ${source.file}`);
+    body = await fetchUrl(source.fallback, source.ggg);
   }
   await mkdir(dirname(dest), { recursive: true });
-  await writeFile(dest, Buffer.from(await res.arrayBuffer()));
-  console.log(`  fetched ${source.file} (${res.headers.get("content-length") ?? "?"} bytes)`);
+  await writeFile(dest, body);
+  console.log(`  fetched ${source.file} (${body.length} bytes)`);
 }
 
 await mkdir(CACHE_DIR, { recursive: true });

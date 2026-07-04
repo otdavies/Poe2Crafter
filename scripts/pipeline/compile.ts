@@ -16,6 +16,7 @@ import { join } from "node:path";
 import { parseLuaAssignments, parseLuaData } from "./lua.ts";
 import { CACHE_DIR, LEAGUE, OUT_DIR, POB_BASE_FILES, POE_CDN, SOURCES } from "./sources.ts";
 import type {
+  AbyssalLord,
   BaseItem,
   BaseProperties,
   BaseRequirements,
@@ -228,7 +229,25 @@ bases.sort((a, b) => a.itemClass.localeCompare(b.itemClass) || a.dropLevel - b.d
 // --- Mods ----------------------------------------------------------------
 // The craftable pool: item-domain prefixes/suffixes (incl. essence-only ones,
 // flagged) — plus every mod referenced by bases/essences/emotions
-// (implicits and essence display mods have generation_type "unique").
+// (implicits and essence display mods have generation_type "unique"), plus
+// the desecrated domain (abyssal bones, 0.3+).
+
+// Desecrated-domain mods that spawn on things we don't simulate: waystones
+// ("map"), Kulemak invitations, Grand Spectrum watchers, breach-ring
+// desecration (Altered Collarbone). Equipment + jewel desecration stays.
+const DESECRATION_EXCLUDED_TAGS = new Set([
+  "map",
+  "watcher_abyss_suffix",
+  "kulemak_abyss_prefix",
+  "kulemak_abyss_special_prefix",
+  "breach_desecration",
+]);
+const LORD_TAGS = new Map<string, AbyssalLord>([
+  ["ulaman_mod", "ulaman"],
+  ["amanamu_mod", "amanamu"],
+  ["kurgal_mod", "kurgal"],
+]);
+
 let mods: Mod[];
 if (cached.get("mods.min.json")) {
   const rawMods = await loadJson<Record<string, any>>("mods.min.json");
@@ -239,6 +258,15 @@ if (cached.get("mods.min.json")) {
       (m.generation_type === "prefix" ||
         m.generation_type === "suffix" ||
         m.generation_type === "corrupted") // Vaal Orb implicit pool
+    ) {
+      wanted.add(id);
+    }
+    if (
+      m.domain === "desecrated" &&
+      (m.generation_type === "prefix" || m.generation_type === "suffix") &&
+      m.spawn_weights.some(
+        (w: any) => w.weight > 0 && !DESECRATION_EXCLUDED_TAGS.has(w.tag),
+      )
     ) {
       wanted.add(id);
     }
@@ -261,7 +289,7 @@ if (cached.get("mods.min.json")) {
         missingRefs.push(id);
         return null;
       }
-      return {
+      const mod: Mod = {
         id,
         name: m.name,
         text: stripMarkup(m.text ?? ""),
@@ -273,7 +301,15 @@ if (cached.get("mods.min.json")) {
         addsTags: m.adds_tags,
         essenceOnly: m.is_essence_only,
         stats: m.stats ?? [],
-      } satisfies Mod;
+      };
+      if (m.domain === "desecrated") {
+        mod.desecrated = true;
+        const lord = (m.implicit_tags as string[])
+          .map((t) => LORD_TAGS.get(t))
+          .find((l) => l !== undefined);
+        if (lord) mod.lord = lord;
+      }
+      return mod;
     })
     .filter((m): m is Mod => m !== null)
     .sort((a, b) => a.id.localeCompare(b.id));
@@ -304,6 +340,34 @@ if (cached.get("trade2_static.json")) {
 } else {
   currency = await loadPrevious<CurrencyItem[]>("currency.json");
 }
+
+/**
+ * Abyssal bones (desecration crafting, 0.3+, current in 0.5). The trade
+ * static snapshot most sandboxes carry forward predates the Abyss trade
+ * category, so the bone list is curated here. Names, trade ids and icon
+ * URLs verified against Exiled Exchange 2's PoE2 dataset
+ * (github.com/Kvan7/Exiled-Exchange-2, renderer/public/data/en/items.ndjson).
+ */
+const CDN_GEN = `${POE_CDN}/gen/image`;
+const BONES: CurrencyItem[] = ([
+  ["gnawed-jawbone", "Gnawed Jawbone", "WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQWJ5c3MvR25hd2VkSmF3Ym9uZSIsInNjYWxlIjoxLCJyZWFsbSI6InBvZTIifV0/6d343a5e8d/GnawedJawbone.png"],
+  ["gnawed-rib", "Gnawed Rib", "WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQWJ5c3MvR25hd2VkUmlicyIsInNjYWxlIjoxLCJyZWFsbSI6InBvZTIifV0/b0581454e6/GnawedRibs.png"],
+  ["gnawed-collarbone", "Gnawed Collarbone", "WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQWJ5c3MvR25hd2VkQ2xhdmljbGUiLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/ff42f1ab47/GnawedClavicle.png"],
+  ["preserved-jawbone", "Preserved Jawbone", "WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQWJ5c3MvUHJlc2VydmVkSmF3Ym9uZSIsInNjYWxlIjoxLCJyZWFsbSI6InBvZTIifV0/2bb7939b21/PreservedJawbone.png"],
+  ["preserved-rib", "Preserved Rib", "WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQWJ5c3MvUHJlc2VydmVkUmlicyIsInNjYWxlIjoxLCJyZWFsbSI6InBvZTIifV0/3676729ba0/PreservedRibs.png"],
+  ["preserved-collarbone", "Preserved Collarbone", "WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQWJ5c3MvUHJlc2VydmVkQ2FsdmljbGUiLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/6f63f7462d/PreservedCalvicle.png"],
+  ["preserved-cranium", "Preserved Cranium", "WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQWJ5c3MvUHJlc2VydmVkQ3Jhbml1bSIsInNjYWxlIjoxLCJyZWFsbSI6InBvZTIifV0/791fdae503/PreservedCranium.png"],
+  ["preserved-vertebrae", "Preserved Vertebrae", "WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQWJ5c3MvUHJlc2VydmVkU3BpbmUiLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/6605f295c5/PreservedSpine.png"],
+  ["ancient-jawbone", "Ancient Jawbone", "WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQWJ5c3MvQW5jaWVudEphd2JvbmUiLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/bff68187a6/AncientJawbone.png"],
+  ["ancient-rib", "Ancient Rib", "WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQWJ5c3MvQW5jaWVudFJpYnMiLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/0c779c5d3f/AncientRibs.png"],
+  ["ancient-collarbone", "Ancient Collarbone", "WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQWJ5c3MvQW5jaWVudENsYXZpY2xlIiwic2NhbGUiOjEsInJlYWxtIjoicG9lMiJ9XQ/86b2c7a29a/AncientClavicle.png"],
+] as const).map(([id, name, icon]) => ({
+  id,
+  name,
+  icon: `${CDN_GEN}/${icon}`,
+  category: "Abyss",
+}));
+currency = [...currency.filter((c) => c.category !== "Abyss"), ...BONES];
 
 const iconByName = new Map(currency.map((c) => [c.name, c.icon]));
 

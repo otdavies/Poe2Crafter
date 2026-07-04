@@ -72,6 +72,9 @@ export interface ModStat {
   max: number;
 }
 
+/** Abyssal lords whose desecrated modifiers bones can reveal (0.3+). */
+export type AbyssalLord = "ulaman" | "amanamu" | "kurgal";
+
 export interface Mod {
   /** repoe mod id, e.g. "IncreasedLife3" */
   id: string;
@@ -84,6 +87,10 @@ export interface Mod {
   groups: string[];
   /** Minimum item level */
   ilvl: number;
+  /** Desecrated-domain mod: only obtainable via abyssal bones, never rolled. */
+  desecrated?: boolean;
+  /** Which abyssal lord the desecrated mod belongs to (datamined tag). */
+  lord?: AbyssalLord;
   /** Ordered (tag, weight) pairs; first matching item tag wins, like the game */
   weights: [tag: string, weight: number][];
   /** Tags used by catalysts to decide what quality boosts */
