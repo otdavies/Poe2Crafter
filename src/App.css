@@ -148,6 +148,7 @@ button.primary {
 .stash-tab-currency::before { background: #d4b060; }
 .stash-tab-essences::before { background: #67c05a; }
 .stash-tab-omens::before { background: #58c0b6; }
+.stash-tab-abyss::before { background: #4a7d3f; }
 .stash-tab-breach::before { background: #b45ad0; }
 .stash-tab-delirium::before { background: #a8a8b8; }
 .stash-tab-verisium::before { background: #d06a3c; }
@@ -445,6 +446,8 @@ button.primary {
 .mod.explicit,
 .mod.implicit { color: #8888ff; }
 .mod.enchant { color: #b4b4ff; }
+/* desecrated modifiers render in the game's abyssal green */
+.mod.desecrated { color: #7cb376; }
 .mod.fractured { color: #a29162; }
 .mod.boosted { text-shadow: 0 0 8px #8888ff66; }
 
@@ -480,6 +483,105 @@ button.primary {
 .tier-badge.tier-top {
   color: #d4b060;
   border-color: #6a5a30;
+}
+
+.tier-badge.tier-desecrated {
+  color: #7cb376;
+  border-color: #3c5a36;
+}
+
+/* ---- Well of Souls (desecration reveal) --------------------------------- */
+.well-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000000b8;
+}
+
+.well-panel {
+  width: min(30rem, 92vw);
+  background:
+    radial-gradient(ellipse at top, #12211077 0%, transparent 60%),
+    linear-gradient(#0c120b, #080a08);
+  border: 1px solid #3c5a36;
+  border-radius: 6px;
+  box-shadow: 0 0 40px #182f14cc, 0 8px 30px #000d;
+  padding: 1rem 1.2rem 1.2rem;
+}
+
+.well-panel h3 {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8fce8f;
+  text-align: center;
+}
+
+.well-sub {
+  margin: 0.3rem 0 0.8rem;
+  font-size: 0.75rem;
+  color: #7f8f7a;
+  text-align: center;
+}
+
+.well-removed {
+  margin: 0 0 0.7rem;
+  font-size: 0.75rem;
+  color: #a05b5b;
+  text-align: center;
+}
+
+.well-removed span {
+  color: #c98a8a;
+}
+
+.well-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.well-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  text-align: left;
+  padding: 0.55rem 0.7rem;
+  background: #0e150dcc;
+  border: 1px solid #2c4228;
+  border-radius: 4px;
+}
+
+.well-option:hover {
+  border-color: #7cb376;
+  box-shadow: 0 0 12px #7cb37633;
+}
+
+.well-mod-text {
+  display: block;
+  color: #7cb376;
+  font-size: 0.9rem;
+  font-family: "Fontin SmallCaps", "Palatino Linotype", Georgia, serif;
+}
+
+.well-lord {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #61705c;
+}
+
+.well-reroll {
+  margin-top: 0.8rem;
+  width: 100%;
+  border-color: #58c0b6;
+  color: #7fd0c8;
 }
 
 /* advanced descriptions (hold Alt): grey per-mod header + dimmed ranges */

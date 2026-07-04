@@ -11,7 +11,14 @@ import type {
 } from "../data/schema.ts";
 import { actionFor, type CraftEvent } from "../engine/actions.ts";
 import { EngineData } from "../engine/data.ts";
+import {
+  commitDesecration,
+  desecrationReveal,
+  rerollReveal,
+  type DesecrationReveal,
+} from "../engine/desecrate.ts";
 import { createItem, type Item } from "../engine/item.ts";
+import { BONES, OMEN } from "../engine/mechanics.ts";
 import { liveRng } from "../engine/rng.ts";
 import { decodeSession, encodedFromHash } from "./share.ts";
 
@@ -46,12 +53,19 @@ interface AppState {
    * item, steps.length = finished). undefined = live crafting.
    */
   replayIndex?: number;
+  /**
+   * Desecration in progress: the Well of Souls offer awaiting the player's
+   * pick. Crafting/undo are paused until a choice is made.
+   */
+  pendingReveal?: { currencyId: string; reveal: DesecrationReveal };
 
   init(): Promise<void>;
   startCraft(baseId: string, ilvl: number): void;
   selectCurrency(id: string | undefined): void;
   toggleOmen(id: string): void;
   applySelected(): void;
+  chooseReveal(choice: number): void;
+  rerollPendingReveal(): void;
   undo(): void;
   reset(): void;
   enterReplay(): void;
@@ -125,13 +139,24 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   applySelected() {
-    const { data, session, selectedCurrency, armedOmens, replayIndex } = get();
+    const { data, session, selectedCurrency, armedOmens, replayIndex, pendingReveal } = get();
     if (!data || !session || !selectedCurrency || replayIndex !== undefined) return;
+    if (pendingReveal) return; // a Well of Souls choice is open
     const action = actionFor(data, selectedCurrency);
     if (!action) return;
     const item = currentItem(session);
     const omens = new Set(armedOmens);
     if (action.canApply(data, item, omens) !== null) return;
+    // Bones open the Well of Souls choice instead of resolving immediately
+    // (Putrefaction skips the reveal — everything is replaced at once).
+    if (action.kind === "desecrate" && !omens.has(OMEN.putrefaction)) {
+      const reveal = desecrationReveal(data, item, liveRng, BONES.get(selectedCurrency)!, omens);
+      set({
+        pendingReveal: { currencyId: selectedCurrency, reveal },
+        armedOmens: armedOmens.filter((o) => !reveal.consumed.includes(o)),
+      });
+      return;
+    }
     const result = action.apply(data, item, liveRng, omens);
     const consumed = result.consumedOmens ?? [];
     set({
@@ -151,9 +176,51 @@ export const useApp = create<AppState>((set, get) => ({
     });
   },
 
+  chooseReveal(choice) {
+    const { data, session, pendingReveal } = get();
+    if (!data || !session || !pendingReveal) return;
+    if (choice < 0 || choice >= pendingReveal.reveal.options.length) return;
+    const item = currentItem(session);
+    const result = commitDesecration(data, item, pendingReveal.reveal, choice, liveRng);
+    set({
+      session: {
+        ...session,
+        steps: [
+          ...session.steps,
+          {
+            currencyId: pendingReveal.currencyId,
+            omens: result.consumedOmens,
+            events: result.events,
+            after: result.item,
+          },
+        ],
+      },
+      pendingReveal: undefined,
+    });
+  },
+
+  rerollPendingReveal() {
+    const { data, session, pendingReveal, armedOmens } = get();
+    if (!data || !session || !pendingReveal) return;
+    if (!armedOmens.includes(OMEN.abyssalEchoes)) return;
+    const reveal = rerollReveal(
+      data,
+      currentItem(session),
+      liveRng,
+      BONES.get(pendingReveal.currencyId)!,
+      new Set(armedOmens),
+      pendingReveal.reveal,
+    );
+    set({
+      pendingReveal: { ...pendingReveal, reveal },
+      armedOmens: armedOmens.filter((o) => o !== OMEN.abyssalEchoes),
+    });
+  },
+
   undo() {
-    const { session, replayIndex } = get();
+    const { session, replayIndex, pendingReveal } = get();
     if (!session || session.steps.length === 0 || replayIndex !== undefined) return;
+    if (pendingReveal) return;
     set({ session: { ...session, steps: session.steps.slice(0, -1) } });
   },
 
@@ -163,6 +230,7 @@ export const useApp = create<AppState>((set, get) => ({
       selectedCurrency: undefined,
       armedOmens: [],
       replayIndex: undefined,
+      pendingReveal: undefined,
     });
     // drop any share-link hash so a reload doesn't resurrect the session
     if (window.location.hash) history.replaceState(null, "", window.location.pathname);

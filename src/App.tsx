@@ -4,9 +4,11 @@ import { currentItem, itemAt, useApp } from "./state/store.ts";
 import { BasePicker } from "./ui/BasePicker.tsx";
 import { ItemCard } from "./ui/ItemCard.tsx";
 import { OddsPanel } from "./ui/OddsPanel.tsx";
+import { OMEN } from "./engine/mechanics.ts";
 import { StashPanel } from "./ui/StashPanel.tsx";
 import { StepLog } from "./ui/StepLog.tsx";
 import { TutorialBar } from "./ui/TutorialBar.tsx";
+import { WellOfSouls } from "./ui/WellOfSouls.tsx";
 import "./App.css";
 
 export default function App() {
@@ -221,6 +223,18 @@ export default function App() {
           />
         )}
       </main>
+
+      {app.pendingReveal && (
+        <WellOfSouls
+          data={app.data}
+          currency={app.currency}
+          currencyId={app.pendingReveal.currencyId}
+          reveal={app.pendingReveal.reveal}
+          canReroll={app.armedOmens.includes(OMEN.abyssalEchoes)}
+          onChoose={app.chooseReveal}
+          onReroll={app.rerollPendingReveal}
+        />
+      )}
 
       <footer className="disclaimer">
         Not affiliated with or endorsed by Grinding Gear Games.

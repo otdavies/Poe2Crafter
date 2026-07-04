@@ -9,9 +9,9 @@ import type { CurrencyItem, Essence } from "../data/schema.ts";
 import { actionFor } from "../engine/actions.ts";
 import { tradeSlug, type EngineData } from "../engine/data.ts";
 import type { Item } from "../engine/item.ts";
-import { ALLOYS, CATALYSTS, CORRUPTED_ESSENCES, OMEN } from "../engine/mechanics.ts";
+import { ALLOYS, BONES, CATALYSTS, CORRUPTED_ESSENCES, OMEN } from "../engine/mechanics.ts";
 
-const TABS = ["Currency", "Essences", "Omens", "Breach", "Delirium", "Verisium"] as const;
+const TABS = ["Currency", "Essences", "Omens", "Abyss", "Breach", "Delirium", "Verisium"] as const;
 type TabId = (typeof TABS)[number];
 
 /** The stash tab a currency id lives in (tutorial mode jumps to it). */
@@ -20,9 +20,24 @@ function tabForCurrency(data: EngineData, id: string): TabId {
   if (data.emotionByCurrencyId.has(id)) return "Delirium";
   if (CATALYSTS.has(id)) return "Breach";
   if (ALLOYS.has(id)) return "Verisium";
+  if (BONES.has(id) || id === "preserved-vertebrae") return "Abyss";
   if (id.startsWith("omen-")) return "Omens";
   return "Currency";
 }
+
+/** Abyssal bones by quality tier (Preserved Vertebrae = waystones, dimmed). */
+const BONE_SECTIONS: { title: string; ids: string[] }[] = [
+  { title: "Gnawed bones — up to item level 64", ids: [
+    "gnawed-jawbone", "gnawed-rib", "gnawed-collarbone",
+  ] },
+  { title: "Preserved bones", ids: [
+    "preserved-jawbone", "preserved-rib", "preserved-collarbone",
+    "preserved-cranium", "preserved-vertebrae",
+  ] },
+  { title: "Ancient bones — modifier level 40+", ids: [
+    "ancient-jawbone", "ancient-rib", "ancient-collarbone",
+  ] },
+];
 
 /** Currency tab: dedicated slot groups, like the game's currency tab. */
 const CURRENCY_SECTIONS: { title: string; ids: string[] }[] = [
@@ -58,6 +73,9 @@ const CRAFT_OMEN_ORDER: string[] = [
   OMEN.homogenisingCoronation,
   OMEN.sinistralCrystallisation, OMEN.dextralCrystallisation,
   OMEN.sanctification,
+  OMEN.sovereign, OMEN.liege, OMEN.blackblooded,
+  OMEN.sinistralNecromancy, OMEN.dextralNecromancy,
+  OMEN.putrefaction, OMEN.abyssalEchoes, OMEN.light,
 ];
 
 const ESSENCE_TIERS = ["Lesser", "", "Greater", "Perfect"] as const;
@@ -299,6 +317,14 @@ export function StashPanel({
             </div>
           </>
         )}
+
+        {tab === "Abyss" &&
+          BONE_SECTIONS.map((section) => (
+            <div key={section.title} className="stash-section">
+              <h4>{section.title}</h4>
+              <div className="slot-grid">{section.ids.map((id) => slot(id))}</div>
+            </div>
+          ))}
 
         {tab === "Breach" && (
           <>

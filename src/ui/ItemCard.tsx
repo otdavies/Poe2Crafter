@@ -37,10 +37,12 @@ function displayTags(mod: Mod): string[] {
 function modHeader(data: EngineData, item: Item, mod: Mod): string {
   const parts: string[] = [];
   if (mod.generation === "prefix" || mod.generation === "suffix") {
-    let head = `${capitalise(mod.generation)} Modifier`;
+    let head = `${mod.desecrated ? "Desecrated " : ""}${capitalise(mod.generation)} Modifier`;
     if (mod.name) head += ` "${mod.name}"`;
-    const tier = modTier(data, item, mod.id);
-    if (tier && tier.count > 1) head += ` (Tier: ${tier.tier})`;
+    if (!mod.desecrated) {
+      const tier = modTier(data, item, mod.id);
+      if (tier && tier.count > 1) head += ` (Tier: ${tier.tier})`;
+    }
     parts.push(head);
   } else if (mod.generation === "corrupted") {
     parts.push("Enchant Modifier");
@@ -64,6 +66,16 @@ function withDimmedRanges(text: string): ReactNode {
 
 /** Always-visible tier chip on the left of an affix. PoE2: higher = better. */
 function TierBadge({ data, item, modId }: { data: EngineData; item: Item; modId: string }) {
+  if (data.mod(modId).desecrated) {
+    return (
+      <span
+        className="tier-badge tier-desecrated"
+        title="Desecrated modifier — revealed at the Well of Souls"
+      >
+        ◆
+      </span>
+    );
+  }
   const tier = modTier(data, item, modId);
   if (!tier) return null;
   const grade =
@@ -92,7 +104,11 @@ function ModLine({ data, item, rolled, kind, advanced }: {
     ? withDimmedRanges(renderModTextRanges(mod.text, values, mod.stats))
     : renderModText(mod.text, values, mod.stats);
   return (
-    <li className={`mod ${kind} ${rolled.fractured ? "fractured" : ""} ${boosted ? "boosted" : ""}`}>
+    <li
+      className={`mod ${kind} ${mod.desecrated ? "desecrated" : ""} ${
+        rolled.fractured ? "fractured" : ""
+      } ${boosted ? "boosted" : ""}`}
+    >
       {kind === "explicit" && <TierBadge data={data} item={item} modId={rolled.modId} />}
       {advanced && <span className="mod-info">{modHeader(data, item, mod)}</span>}
       <span className="mod-text">
