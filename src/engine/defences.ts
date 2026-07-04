@@ -15,6 +15,7 @@
 import type { BaseProperties } from "../data/schema.ts";
 import type { EngineData } from "./data.ts";
 import { effectiveValues, type Item } from "./item.ts";
+import { runeEffectFor } from "./runes.ts";
 
 type PropKey = keyof BaseProperties;
 
@@ -78,21 +79,37 @@ export function computedProperties(data: EngineData, item: Item): ComputedProper
   const flat: Partial<Record<PropKey, number>> = {};
   const increased: Partial<Record<PropKey, number>> = {};
 
+  const fold = (statId: string, value: number, scale?: number) => {
+    const flatSpec = FLAT[statId];
+    if (flatSpec) {
+      for (const key of flatSpec.props) {
+        flat[key] = (flat[key] ?? 0) + value * (scale ?? flatSpec.scale ?? 1);
+      }
+    }
+    for (const key of INCREASED[statId] ?? []) {
+      increased[key] = (increased[key] ?? 0) + value;
+    }
+  };
+
   for (const rolled of [...item.implicits, ...item.explicits]) {
     const mod = data.mod(rolled.modId);
     const values = effectiveValues(data, item, rolled);
-    mod.stats.forEach((stat, i) => {
-      const value = values[i] ?? 0;
-      const flatSpec = FLAT[stat.id];
-      if (flatSpec) {
-        for (const key of flatSpec.props) {
-          flat[key] = (flat[key] ?? 0) + value * (flatSpec.scale ?? 1);
-        }
-      }
-      for (const key of INCREASED[stat.id] ?? []) {
-        increased[key] = (increased[key] ?? 0) + value;
-      }
-    });
+    mod.stats.forEach((stat, i) => fold(stat.id, values[i] ?? 0));
+  }
+
+  // Socketed runes: fixed values live inside the display text; when the
+  // numbers align one-to-one with the stat ids (true for every local-stat
+  // rune effect), fold them in. Rune texts carry display units, so the
+  // datamine unit scale (e.g. crit in 1/100%) must not be applied again.
+  for (const runeId of item.sockets ?? []) {
+    if (!runeId) continue;
+    const rune = data.runeById.get(runeId);
+    if (!rune) continue;
+    const effect = runeEffectFor(data, item, rune);
+    if (!effect) continue;
+    const numbers = effect.text.join(" ").match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+    if (numbers.length !== effect.stats.length) continue;
+    effect.stats.forEach((statId, i) => fold(statId, numbers[i], 1));
   }
 
   const properties: BaseProperties = { ...base };

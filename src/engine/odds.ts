@@ -39,6 +39,7 @@ import {
   VAAL_OUTCOMES,
 } from "./mechanics.ts";
 import { rollablePool, spawnWeight, type PoolEntry, type PoolFilter } from "./modpool.ts";
+import { defaultSocketIndex, maxSockets, runeEffectFor } from "./runes.ts";
 
 /** One mod family (shared group set) that can be added, with its chance. */
 export interface AdditionFamily {
@@ -391,6 +392,30 @@ export function oddsFor(
         addition: additionOdds(pools, 1),
         notes: [
           `The Well of Souls reveals ${DESECRATION_CHOICES} of these — you keep one (chances shown are per revealed slot)`,
+        ],
+      });
+    }
+    case "socket": {
+      // Deterministic: Artificer's Orb adds a socket, runes grant fixed values.
+      const rune = data.runeById.get(currencyId);
+      if (!rune) {
+        const count = item.sockets?.length ?? 0;
+        return craft({
+          notes: [
+            `Adds a Rune Socket (${count + 1} of ${maxSockets(data, item)}) — deterministic`,
+          ],
+        });
+      }
+      const effect = runeEffectFor(data, item, rune)!;
+      const target = defaultSocketIndex(item);
+      const replaced = item.sockets?.[target];
+      return craft({
+        notes: [
+          ...effect.text.map((line) => `Grants: ${line}`),
+          "Deterministic — rune effects have fixed values",
+          ...(replaced
+            ? [`Replaces the rune in socket ${target + 1}; the old rune is destroyed`]
+            : []),
         ],
       });
     }

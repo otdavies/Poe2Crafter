@@ -45,6 +45,12 @@ function checkItem(data: EngineData, item: Item): void {
   if (!["normal", "magic", "rare"].includes(item.rarity)) throw new Error("bad rarity");
   checkMods(data, item.implicits);
   checkMods(data, item.explicits);
+  if (item.sockets !== undefined) {
+    if (!Array.isArray(item.sockets)) throw new Error("sockets not an array");
+    for (const socket of item.sockets) {
+      if (socket !== null) data.rune(socket); // throws on unknown ids
+    }
+  }
 }
 
 /**

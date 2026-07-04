@@ -32,6 +32,11 @@ export interface Item {
   /** Omen of Sanctification: values locked in, item can never change again. */
   sanctified?: boolean;
   quality?: ItemQuality;
+  /**
+   * Rune sockets (0.5): one entry per socket, null = empty, otherwise the
+   * socketed rune's currency id. Absent = no sockets yet.
+   */
+  sockets?: (string | null)[];
 }
 
 export function createItem(data: EngineData, baseId: string, ilvl: number, rng: Rng): Item {

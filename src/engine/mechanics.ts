@@ -423,3 +423,49 @@ export const LORD_OMENS: ReadonlyMap<string, AbyssalLord> = new Map([
  * Sources: 0.5.0 patch notes (via maxroll mirror), poe2wiki Liquid_Emotion.
  */
 export const TIME_LOST_PREFIX = "Time-Lost ";
+
+/**
+ * Rune sockets (0.5 "Runes of Aldur").
+ *
+ * Socket capacity: body armours and two-handed weapons hold up to TWO
+ * sockets, every other socketable class holds ONE (mobalytics
+ * "runes-sockets", game8 archive 489096, maxroll "runes-and-soul-cores").
+ * Quivers, jewellery, charms and jewels cannot have sockets. Sockets are
+ * added with an Artificer's Orb (10 Artificer's Shards = 1 orb; shards are
+ * salvage output, not a craft action). Caster weapons and talismans are
+ * socketable — the datamined augment pool carries dedicated Wand/Staff/
+ * Sceptre/Talisman effects and the wiki's Artificer's Orb text names wands
+ * and staves. TODO(0.5-verify): caster-weapon and talisman socket CAPACITY
+ * (staff treated as two-handed here) — early-access sources disagree and
+ * 0.5 changed several socket rules.
+ *
+ * Socketing: a rune in an empty socket is permanent; socketing into an
+ * occupied socket DESTROYS the old rune and replaces it (0.1.1+ patch
+ * behaviour, still current — game8 archive 604673 "How to Remove Runes").
+ * Rune effects are fixed values (no rolls). Limits from the datamine:
+ * `limit: 1` runes allow one copy per item; Ancient runes and Aldur's
+ * Legacy runes allow one of their group per item. TODO(0.5-verify): guides
+ * describe the Ancient-augment limit as one per CHARACTER; per item is the
+ * closest a single-item simulator can encode. Corrupted items cannot be
+ * modified — TODO(0.5-verify) whether socketing bypasses that rule.
+ */
+const TWO_SOCKET_CLASSES = [
+  "Body Armour",
+  "Two Hand Axe", "Two Hand Mace", "Two Hand Sword",
+  "Warstaff", "Bow", "Crossbow", "Staff",
+] as const;
+const ONE_SOCKET_CLASSES = [
+  "Helmet", "Gloves", "Boots", "Shield", "Buckler", "Focus",
+  "Claw", "Dagger", "Flail", "Spear",
+  "One Hand Axe", "One Hand Mace", "One Hand Sword",
+  "Wand", "Sceptre", "Talisman",
+] as const;
+
+/** itemClass -> maximum rune sockets; absent = cannot have sockets. */
+export const SOCKET_MAX: ReadonlyMap<string, number> = new Map([
+  ...TWO_SOCKET_CLASSES.map((c) => [c, 2] as [string, number]),
+  ...ONE_SOCKET_CLASSES.map((c) => [c, 1] as [string, number]),
+]);
+
+/** Trade id of the Artificer's Orb (adds one rune socket). */
+export const ARTIFICER = "artificers";

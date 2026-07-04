@@ -10,7 +10,7 @@
  * Dextral) narrow the candidate set first, then selection rules (Whittling's
  * lowest-level pick) run inside it.
  */
-import type { DistilledEmotion, Essence } from "../data/schema.ts";
+import type { DistilledEmotion, Essence, Rune } from "../data/schema.ts";
 import type { EngineData } from "./data.ts";
 import {
   affixLimit,
@@ -31,9 +31,11 @@ import {
   desecrationReveal,
   putrefy,
 } from "./desecrate.ts";
+import { addSocket, canAddSocket, canSocketRune, socketRune } from "./runes.ts";
 import {
   ALCHEMY_MOD_COUNT,
   ALLOYS,
+  ARTIFICER,
   BONES,
   CATALYSTS,
   catalystQualityPerUse,
@@ -74,7 +76,9 @@ export type CraftEvent =
   | { kind: "fractured"; mod: RolledMod }
   | { kind: "quality"; quality: ItemQuality }
   | { kind: "corrupted" }
-  | { kind: "no_change" };
+  | { kind: "no_change" }
+  | { kind: "socket_added" }
+  | { kind: "socketed"; runeId: string; index: number; replaced?: string };
 
 export interface CraftResult {
   item: Item;
@@ -102,7 +106,8 @@ export type ActionKind =
   | "alloy"
   | "emotion"
   | "catalyst"
-  | "desecrate";
+  | "desecrate"
+  | "socket";
 
 export interface CraftAction {
   /** trade API currency id, e.g. "chaos" — the key the UI dispatches on. */
@@ -877,6 +882,46 @@ function boneAction(currencyId: string, spec: BoneSpec): CraftAction {
   };
 }
 
+/** Artificer's Orb: adds a rune socket (deterministic). */
+const artificer: CraftAction = {
+  currencyId: ARTIFICER,
+  kind: "socket",
+  canApply: (data, item) => canAddSocket(data, item),
+  apply(_data, item) {
+    return { item: addSocket(item), events: [{ kind: "socket_added" }] };
+  },
+};
+
+/**
+ * Socket a rune into the given socket (the displaced rune is destroyed).
+ * Exported so the UI can target the exact socket the player clicked; the
+ * CraftAction path uses the default target (first empty, else socket 0).
+ */
+export function applyRune(
+  _data: EngineData,
+  item: Item,
+  rune: Rune,
+  index?: number,
+): CraftResult {
+  const result = socketRune(item, rune, index);
+  return {
+    item: result.item,
+    events: [
+      { kind: "socketed", runeId: rune.id, index: result.index, replaced: result.replaced },
+    ],
+  };
+}
+
+/** Runes: fixed effect into a socket; no randomness anywhere. */
+function runeAction(currencyId: string, rune: Rune): CraftAction {
+  return {
+    currencyId,
+    kind: "socket",
+    canApply: (data, item) => canSocketRune(data, item, rune),
+    apply: (data, item) => applyRune(data, item, rune),
+  };
+}
+
 /** Catalysts: quality that boosts matching-tag modifier values. */
 function catalystAction(currencyId: string, spec: CatalystSpec): CraftAction {
   return {
@@ -933,6 +978,7 @@ export const ACTIONS: ReadonlyMap<string, CraftAction> = new Map(
     divine,
     vaal,
     fracturing,
+    artificer,
   ].map((action) => [action.currencyId, action]),
 );
 
@@ -953,5 +999,7 @@ export function actionFor(data: EngineData, currencyId: string): CraftAction | u
   if (alloy) return alloyAction(currencyId, alloy);
   const bone = BONES.get(currencyId);
   if (bone) return boneAction(currencyId, bone);
+  const rune = data.runeById.get(currencyId);
+  if (rune) return runeAction(currencyId, rune);
   return undefined;
 }
