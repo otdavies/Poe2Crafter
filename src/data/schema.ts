@@ -60,6 +60,12 @@ export interface BaseItem {
   implicits: string[];
   width: number;
   height: number;
+  /**
+   * Canonical 2D art path ("Art/2DItems/.../Foo", no extension). PoE2's CDN
+   * only serves signed URLs, so the UI can't build image links from this
+   * yet — kept for a future icon resolver. Synthesized jewel bases: none.
+   */
+  art?: string;
   properties?: BaseProperties;
   req?: BaseRequirements;
 }

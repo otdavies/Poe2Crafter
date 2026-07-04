@@ -184,6 +184,8 @@ if (cached.get("base_items.min.json")) {
       implicits: b.implicits,
       width: b.inventory_width,
       height: b.inventory_height,
+      // "Art/2DItems/.../Foo.dds" → poecdn image path (UI builds the URL).
+      art: (b.visual_identity?.dds_file as string | undefined)?.replace(/\.dds$/, ""),
     }));
 } else {
   // Strip previously merged PoB fields and synthesized jewels ("Jewel/" ids);
