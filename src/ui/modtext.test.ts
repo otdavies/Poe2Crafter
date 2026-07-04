@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { familyText, renderModText } from "./modtext.ts";
+import { familyText, renderModText, renderModTextRanges } from "./modtext.ts";
 
 describe("familyText", () => {
   it("merges tier ranges positionally", () => {
@@ -73,6 +73,23 @@ describe("renderModText", () => {
         { id: "base_maximum_life", min: 10, max: 19 },
       ]),
     ).toBe("+14 to maximum Life");
+  });
+
+  it("appends display ranges in advanced mode, like the game's Alt view", () => {
+    expect(renderModTextRanges("+(10-19) to maximum Life", [14])).toBe(
+      "+14(10–19) to maximum Life",
+    );
+    expect(renderModTextRanges("Adds (2-3) to (4-6) Physical Damage", [3, 5])).toBe(
+      "Adds 3(2–3) to 5(4–6) Physical Damage",
+    );
+  });
+
+  it("advanced ranges always read low→high, even on negated 'reduced' texts", () => {
+    expect(
+      renderModTextRanges("(20-10)% reduced Flask Charges used", [-15], [
+        { id: "flask_charges_used_+%", min: -20, max: -10 },
+      ]),
+    ).toBe("15(10–20)% reduced Flask Charges used");
   });
 
   it("pairs ranges to matching stats when counts disagree", () => {

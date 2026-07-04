@@ -13,6 +13,10 @@ export default function App() {
   const app = useApp();
   const [hovered, setHovered] = useState<string | undefined>();
   const [copied, setCopied] = useState(false);
+  // Advanced mod descriptions: held while Alt is down (like the game), or
+  // pinned via the topbar toggle.
+  const [altHeld, setAltHeld] = useState(false);
+  const [advancedPinned, setAdvancedPinned] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
@@ -22,6 +26,11 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Alt") {
+        e.preventDefault(); // keep the browser from focusing its menu bar
+        setAltHeld(true);
+        return;
+      }
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
       const state = useApp.getState();
       if (e.key === "Escape") {
@@ -35,8 +44,21 @@ export default function App() {
         state.setReplay(state.replayIndex + 1);
       }
     };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Alt") {
+        e.preventDefault();
+        setAltHeld(false);
+      }
+    };
+    const onBlur = () => setAltHeld(false);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+    };
   }, []);
 
   if (app.status === "loading") return <main className="shell">Loading game data…</main>;
@@ -79,6 +101,14 @@ export default function App() {
         <div className="topbar-actions">
           {app.session && (
             <>
+              <button
+                type="button"
+                className={advancedPinned ? "toggled" : ""}
+                onClick={() => setAdvancedPinned((v) => !v)}
+                title="Advanced mod descriptions — or hold Alt"
+              >
+                Alt info
+              </button>
               <button type="button" onClick={share} disabled={app.session.steps.length === 0}>
                 {copied ? "Link copied!" : "Share"}
               </button>
@@ -147,6 +177,7 @@ export default function App() {
                 item={item}
                 active={!replaying && Boolean(app.selectedCurrency)}
                 onClick={app.applySelected}
+                advanced={altHeld || advancedPinned}
               />
               {!replaying && app.armedOmens.length > 0 && (
                 <div className="armed-omens">

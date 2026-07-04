@@ -313,9 +313,9 @@ button.primary {
 .item-card {
   min-width: 22rem;
   max-width: 28rem;
-  background: linear-gradient(#0c0c0eee, #101014ee);
+  background: #000000e6;
   border: 1px solid #3a3a40;
-  border-radius: 4px;
+  border-radius: 3px;
   text-align: center;
   font-family: "Fontin SmallCaps", "Palatino Linotype", Georgia, serif;
 }
@@ -328,104 +328,158 @@ button.primary {
   border-color: #d4b060;
 }
 
-.item-card header {
-  padding: 0.6rem 1rem 0.4rem;
-  border-bottom: 1px solid #2a2a30;
-  background: #16161a;
+/* name plate — per-rarity gradient bar with darkened ornamental ends */
+.item-header {
+  position: relative;
+  padding: 0.45rem 2.2rem 0.4rem;
+  background: linear-gradient(#35353b, #1c1c21 70%, #131316);
+  border-bottom: 1px solid #000;
+}
+
+.item-header::before,
+.item-header::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1.6rem;
+  background: linear-gradient(90deg, #00000066, transparent);
+}
+
+.item-header::before { left: 0; }
+.item-header::after { right: 0; transform: scaleX(-1); }
+
+.rarity-magic .item-header {
+  background: linear-gradient(#26263f, #16162a 70%, #101018);
+}
+
+.rarity-rare .item-header {
+  background: linear-gradient(#3d3627, #241f14 70%, #161209);
+}
+
+.item-class {
+  display: block;
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7f7f7f;
 }
 
 .item-card h2 {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.item-basename {
+  margin: 0;
+  font-size: 1rem;
   font-weight: 600;
 }
 
 .rarity-normal h2 { color: #c8c8c8; }
 .rarity-magic h2 { color: #8888ff; }
-.rarity-rare h2 { color: #ffff77; }
+.rarity-rare h2, .rarity-rare .item-basename { color: #ffff77; }
 
-.item-class {
-  margin: 0.15rem 0 0;
-  font-size: 0.75rem;
-  color: #7f7f7f;
+.item-body {
+  padding: 0.45rem 1rem 0.55rem;
+}
+
+/* golden separator between tooltip sections, like the game's */
+.item-sep {
+  height: 1px;
+  margin: 0.32rem 12%;
+  background: linear-gradient(90deg, transparent, #7f6b3f 25%, #7f6b3f 75%, transparent);
 }
 
 .item-stats {
   list-style: none;
   margin: 0;
-  padding: 0.45rem 1.4rem;
-  border-bottom: 1px solid #2a2a30;
+  padding: 0;
 }
 
 .stat-line {
   display: flex;
-  justify-content: space-between;
-  gap: 1rem;
+  justify-content: center;
+  gap: 0.35rem;
   font-size: 0.85rem;
+}
+
+.stat-label {
   color: #7f7f7f;
 }
 
 .stat-value {
-  color: #ddd;
+  color: #fff;
 }
 
-.quality-line,
+.quality-line .stat-label,
 .quality-line .stat-value {
   color: #8888ff;
 }
 
-.item-reqs {
+.item-reqs,
+.item-ilvl {
   margin: 0;
-  padding: 0.35rem 1rem;
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   color: #7f7f7f;
-  border-bottom: 1px solid #2a2a30;
+}
+
+.item-ilvl span {
+  color: #fff;
 }
 
 .mods {
   list-style: none;
   margin: 0;
-  padding: 0.5rem 1rem;
-}
-
-.mods + .mods {
-  border-top: 1px solid #2a2a30;
+  padding: 0;
 }
 
 .mod {
-  padding: 0.1rem 0;
+  padding: 0.08rem 0;
   font-size: 0.95rem;
+  line-height: 1.25;
 }
 
-.mod.explicit { color: #8888ff; }
-.mod.implicit { color: #a0a0c0; font-style: italic; }
+.mod.explicit,
+.mod.implicit { color: #8888ff; }
+.mod.enchant { color: #b4b4ff; }
 .mod.fractured { color: #a29162; }
 .mod.boosted { text-shadow: 0 0 8px #8888ff66; }
+
+/* advanced descriptions (hold Alt): grey per-mod header + dimmed ranges */
+.mod-info {
+  display: block;
+  font-size: 0.66rem;
+  line-height: 1.3;
+  color: #7f7f7f;
+}
+
+.mod-range {
+  color: #7f7f7f;
+  font-size: 0.82em;
+}
 
 .mod-tag {
   font-size: 0.7rem;
   color: #a29162;
 }
 
-.item-hint {
-  padding: 0.6rem 1rem;
-  margin: 0;
-  color: #666;
-  font-size: 0.85rem;
-}
-
 .corrupted-line {
   margin: 0;
-  padding: 0.4rem;
   color: #d20000;
-  border-top: 1px solid #2a2a30;
 }
 
 .sanctified-line {
   margin: 0;
-  padding: 0.4rem;
   color: #e8d5a0;
-  border-top: 1px solid #2a2a30;
+}
+
+button.toggled {
+  border-color: #6a5a30;
+  background: #2a2415;
+  color: #e8d5a0;
 }
 
 .armed-omens {

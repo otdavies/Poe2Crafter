@@ -66,23 +66,25 @@ export function familyText(texts: string[]): string {
   });
 }
 
-export function renderModText(text: string, values: number[], stats?: ModStat[]): string {
-  const rangeCount = [...text.matchAll(RANGE_ALL)].length;
+/** Per-range rendered value, in text order (undefined = leave the range raw). */
+function renderings(
+  text: string,
+  values: number[],
+  stats: ModStat[] | undefined,
+  withRanges: boolean,
+): (string | undefined)[] {
+  const matches = [...text.matchAll(RANGE_ALL)];
   // Unit remapping needs one text range per stat; otherwise pair each range
   // with the first unused stat sharing its exact bounds (same units).
-  const indexPaired = stats !== undefined && rangeCount === stats.length;
+  const indexPaired = stats !== undefined && matches.length === stats.length;
   const used = new Set<number>();
-  let out = text;
-  for (let i = 0; i < rangeCount; i++) {
-    const match = RANGE.exec(out);
-    if (!match) break;
+  return matches.map((match, i) => {
     let rendered: string | undefined;
     if (indexPaired && i < values.length) {
       rendered = displayValue(values[i], stats[i], match[1], match[2]);
     } else if (stats) {
       const j = stats.findIndex(
-        (s, k) =>
-          !used.has(k) && s.min === Number(match[1]) && s.max === Number(match[2]),
+        (s, k) => !used.has(k) && s.min === Number(match[1]) && s.max === Number(match[2]),
       );
       if (j >= 0 && j < values.length) {
         used.add(j);
@@ -90,8 +92,29 @@ export function renderModText(text: string, values: number[], stats?: ModStat[])
       }
     }
     rendered ??= i < values.length ? String(values[i]) : undefined;
-    if (rendered === undefined) break;
-    out = out.replace(RANGE, rendered);
-  }
-  return out;
+    if (rendered !== undefined && withRanges && match[1] !== match[2]) {
+      // negated "reduced" texts can carry high-to-low ranges; show low→high
+      const [lo, hi] = [Number(match[1]), Number(match[2])].sort((a, b) => a - b);
+      rendered += `(${lo}–${hi})`;
+    }
+    return rendered;
+  });
+}
+
+function substitute(text: string, rendered: (string | undefined)[]): string {
+  let i = 0;
+  return text.replace(RANGE_ALL, (raw) => rendered[i++] ?? raw);
+}
+
+export function renderModText(text: string, values: number[], stats?: ModStat[]): string {
+  return substitute(text, renderings(text, values, stats, false));
+}
+
+/**
+ * Advanced-descriptions variant (game: hold Alt): each rolled value is
+ * followed by its tier's display range, "+104(100–109) to maximum Life".
+ * The en-dash marks inserted ranges so the UI can dim them.
+ */
+export function renderModTextRanges(text: string, values: number[], stats?: ModStat[]): string {
+  return substitute(text, renderings(text, values, stats, true));
 }

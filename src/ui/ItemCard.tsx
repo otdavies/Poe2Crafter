@@ -1,28 +1,87 @@
-/** Game-style item tooltip for the item being crafted. */
-import type { BaseItem, BaseProperties } from "../data/schema.ts";
+/**
+ * Game-style item tooltip. Mirrors the in-game layout: rarity name plate
+ * (rares get their name above the base name), centred stat lines, golden
+ * separators, then enchants → implicits → explicits. With `advanced` on
+ * (game: hold Alt) it adds the Item Level line, per-mod headers
+ * (`Prefix Modifier "Hale" (Tier: 7) — Life`) and roll ranges.
+ */
+import type { ReactNode } from "react";
+import { Fragment } from "react";
+import type { BaseItem, BaseProperties, Mod } from "../data/schema.ts";
 import type { EngineData } from "../engine/data.ts";
 import { computedProperties } from "../engine/defences.ts";
 import { effectiveValues, maxQuality, qualityTag, type Item, type RolledMod } from "../engine/item.ts";
-import { renderModText } from "./modtext.ts";
+import { modTier } from "../engine/tiers.ts";
+import { itemHeader } from "./itemname.ts";
+import { renderModText, renderModTextRanges } from "./modtext.ts";
 
 type PropKey = keyof BaseProperties;
 type Augmented = ReadonlySet<PropKey>;
 /** label, display value, whether any shown property was modified locally */
 type StatRow = [string, string, boolean];
 
-function ModLine({ data, item, rolled, kind }: {
+const capitalise = (tag: string): string => tag.charAt(0).toUpperCase() + tag.slice(1);
+
+/**
+ * The game's Alt header shows the simple mod tags ("Elemental, Cold,
+ * Resistance"); the datamined list also carries compound catalyst tags
+ * ("Cold_resistance") — drop those unless they're all we have.
+ */
+function displayTags(mod: Mod): string[] {
+  const simple = mod.catalystTags.filter((t) => !t.includes("_"));
+  const tags = simple.length > 0 ? simple : mod.catalystTags;
+  return tags.map((t) => t.split("_").map(capitalise).join(" "));
+}
+
+/** Advanced header, e.g. `Prefix Modifier "Hale" (Tier: 7) — Life, Attack`. */
+function modHeader(data: EngineData, item: Item, mod: Mod): string {
+  const parts: string[] = [];
+  if (mod.generation === "prefix" || mod.generation === "suffix") {
+    let head = `${capitalise(mod.generation)} Modifier`;
+    if (mod.name) head += ` "${mod.name}"`;
+    const tier = modTier(data, item, mod.id);
+    if (tier && tier.count > 1) head += ` (Tier: ${tier.tier})`;
+    parts.push(head);
+  } else if (mod.generation === "corrupted") {
+    parts.push("Enchant Modifier");
+  } else {
+    parts.push("Implicit Modifier");
+  }
+  if (mod.catalystTags.length > 0) {
+    parts.push(displayTags(mod).join(", "));
+  }
+  return parts.join(" — ");
+}
+
+/** Roll ranges are inserted with an en-dash; dim them like the game does. */
+function withDimmedRanges(text: string): ReactNode {
+  const pieces = text.split(/(\(\d+(?:\.\d+)?–\d+(?:\.\d+)?\))/);
+  if (pieces.length === 1) return text;
+  return pieces.map((piece, i) =>
+    i % 2 === 1 ? <span key={i} className="mod-range">{piece}</span> : piece,
+  );
+}
+
+function ModLine({ data, item, rolled, kind, advanced }: {
   data: EngineData;
   item: Item;
   rolled: RolledMod;
-  kind: "implicit" | "explicit";
+  kind: "implicit" | "enchant" | "explicit";
+  advanced: boolean;
 }) {
   const mod = data.mod(rolled.modId);
   const values = effectiveValues(data, item, rolled);
   const boosted = values !== rolled.values;
+  const text = advanced
+    ? withDimmedRanges(renderModTextRanges(mod.text, values, mod.stats))
+    : renderModText(mod.text, values, mod.stats);
   return (
     <li className={`mod ${kind} ${rolled.fractured ? "fractured" : ""} ${boosted ? "boosted" : ""}`}>
-      {renderModText(mod.text, values, mod.stats)}
-      {rolled.fractured && <span className="mod-tag"> (fractured)</span>}
+      {advanced && <span className="mod-info">{modHeader(data, item, mod)}</span>}
+      <span className="mod-text">
+        {text}
+        {rolled.fractured && <span className="mod-tag"> (fractured)</span>}
+      </span>
     </li>
   );
 }
@@ -74,80 +133,98 @@ function requirementsLine(base: BaseItem): string | undefined {
   if (req.str) parts.push(`${req.str} Str`);
   if (req.dex) parts.push(`${req.dex} Dex`);
   if (req.int) parts.push(`${req.int} Int`);
-  return parts.length > 0 ? `Requires ${parts.join(", ")}` : undefined;
+  return parts.length > 0 ? `Requires: ${parts.join(", ")}` : undefined;
 }
 
-export function ItemCard({ data, item, onClick, active }: {
+export function ItemCard({ data, item, onClick, active, advanced = false }: {
   data: EngineData;
   item: Item;
   onClick?: () => void;
   active?: boolean;
+  advanced?: boolean;
 }) {
   const base = data.base(item.baseId);
+  const header = itemHeader(data, item);
   const { properties, augmented } = computedProperties(data, item);
   const stats = base.properties
     ? [...defenceRows(properties, augmented), ...weaponRows(properties, augmented)]
     : [];
   const requirements = requirementsLine(base);
   const tag = qualityTag(item);
+  // The game splits corruption-granted lines (enchants) from base implicits.
+  const enchants = item.implicits.filter((m) => data.mod(m.modId).generation === "corrupted");
+  const implicits = item.implicits.filter((m) => data.mod(m.modId).generation !== "corrupted");
+
+  const modList = (mods: RolledMod[], kind: "implicit" | "enchant" | "explicit") => (
+    <ul className={`mods mods-${kind}`}>
+      {mods.map((rolled, i) => (
+        <ModLine
+          key={`${kind}-${rolled.modId}-${i}`}
+          data={data}
+          item={item}
+          rolled={rolled}
+          kind={kind}
+          advanced={advanced}
+        />
+      ))}
+    </ul>
+  );
+
+  const sections: ReactNode[] = [];
+  if (stats.length > 0 || item.quality) {
+    sections.push(
+      <ul className="item-stats" key="stats">
+        {item.quality && tag && (
+          <li className="stat-line quality-line">
+            <span className="stat-label">Quality ({tag} Modifiers):</span>
+            <span className="stat-value">
+              +{item.quality.percent}% (max {maxQuality(data, item)}%)
+            </span>
+          </li>
+        )}
+        {stats.map(([label, value, isAugmented]) => (
+          <li key={label} className="stat-line">
+            <span className="stat-label">{label}:</span>
+            <span className={`stat-value ${isAugmented ? "stat-augmented" : ""}`}>{value}</span>
+          </li>
+        ))}
+      </ul>,
+    );
+  }
+  if (requirements) sections.push(<p className="item-reqs" key="reqs">{requirements}</p>);
+  if (advanced) {
+    sections.push(
+      <p className="item-ilvl" key="ilvl">
+        Item Level: <span>{item.ilvl}</span>
+      </p>,
+    );
+  }
+  if (enchants.length > 0) sections.push(<Fragment key="enchants">{modList(enchants, "enchant")}</Fragment>);
+  if (implicits.length > 0) sections.push(<Fragment key="implicits">{modList(implicits, "implicit")}</Fragment>);
+  if (item.explicits.length > 0) {
+    sections.push(<Fragment key="explicits">{modList(item.explicits, "explicit")}</Fragment>);
+  }
+  if (item.sanctified) sections.push(<p className="sanctified-line" key="sanctified">Sanctified</p>);
+  if (item.corrupted) sections.push(<p className="corrupted-line" key="corrupted">Corrupted</p>);
 
   return (
     <article
       className={`item-card rarity-${item.rarity} ${active ? "item-card-active" : ""}`}
       onClick={onClick}
     >
-      <header>
-        <h2>{base.name}</h2>
-        <p className="item-class">
-          {base.itemClass} · Item Level {item.ilvl}
-        </p>
+      <header className={`item-header ${header.base ? "item-header-double" : ""}`}>
+        <span className="item-class">{base.itemClass}</span>
+        <h2>{header.name}</h2>
+        {header.base && <p className="item-basename">{header.base}</p>}
       </header>
-      {(stats.length > 0 || item.quality) && (
-        <ul className="item-stats">
-          {item.quality && tag && (
-            <li className="stat-line quality-line">
-              <span>Quality ({tag} modifiers)</span>
-              <span className="stat-value">
-                +{item.quality.percent}% (max {maxQuality(data, item)}%)
-              </span>
-            </li>
-          )}
-          {stats.map(([label, value, isAugmented]) => (
-            <li key={label} className="stat-line">
-              <span>{label}</span>
-              <span className={`stat-value ${isAugmented ? "stat-augmented" : ""}`}>
-                {value}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {requirements && <p className="item-reqs">{requirements}</p>}
-      {item.implicits.length > 0 && (
-        <ul className="mods">
-          {item.implicits.map((rolled, i) => (
-            <ModLine key={`imp-${i}`} data={data} item={item} rolled={rolled} kind="implicit" />
-          ))}
-        </ul>
-      )}
-      {item.explicits.length > 0 && (
-        <ul className="mods">
-          {item.explicits.map((rolled, i) => (
-            <ModLine
-              key={`exp-${rolled.modId}-${i}`}
-              data={data}
-              item={item}
-              rolled={rolled}
-              kind="explicit"
-            />
-          ))}
-        </ul>
-      )}
-      {item.explicits.length === 0 && item.rarity === "normal" && (
-        <p className="item-hint">No explicit modifiers</p>
-      )}
-      {item.sanctified && <p className="sanctified-line">Sanctified</p>}
-      {item.corrupted && <p className="corrupted-line">Corrupted</p>}
+      <div className="item-body">
+        {sections.map((section, i) => (
+          <Fragment key={i}>
+            {i > 0 && <div className="item-sep" />}
+            {section}
+          </Fragment>
+        ))}
+      </div>
     </article>
   );
 }
