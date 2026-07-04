@@ -21,8 +21,8 @@ Zustand + Vitest, oxlint).
 | 3 | Playable UI: base picker, game-style tooltip, currency panel, step log, undo | ✅ done |
 | 4 | Essences (+corrupted, +Verisium Alloys), omens (arming + interaction order), Fracturing Orb, catalysts (quality), liquid emotions on jewels; stash-tab UI + base item stats | ✅ done |
 | 5 | Odds panel (hover currency → hit chances), share links (lz-string URL hash), tutorial step-through mode | ✅ done |
-| 6 | Polish, keyboard shortcuts, computed defences (mods applied to base stats), data-refresh automation PR flow | **⬅ NEXT** |
-| 7 | Runes + Runeforging (0.5 league mechanic, 213 runes; bundle already has Runes category + Runemastered bases) | pending |
+| 6 | Keyboard shortcuts, computed defences (local mods folded into base stats), data-refresh automation PR flow (existed since phase 1) | ✅ done |
+| 7 | Runes + Runeforging (0.5 league mechanic, 213 runes; bundle already has Runes category + Runemastered bases) | **⬅ NEXT** |
 
 Recombination is deliberately out of scope (disabled in 0.5 anyway).
 
@@ -143,8 +143,13 @@ Engine essentials:
   values from the stat range onto the text's display range (handles
   per-minute, permyriad, ×100 crit, negated "reduced" stats without unit
   tables). Odds/tooltip code in phase 5 should reuse it.
-- ItemCard shows **base** defence numbers only — mods (e.g. "42% increased
-  Armour") are not folded in yet (phase 6 "computed defences").
+- ~~Base-only defence display~~ fixed: `src/engine/defences.ts`
+  `computedProperties()` folds `local_*` flat + %-increased stats into the
+  base numbers with the game's (base + flat) × (1 + Σ%/100) formula;
+  augmented values render blue on the card. Known gaps (documented in the
+  module header): hand-wraps per-character-level defences, spirit/accuracy
+  (not in compiled base properties), weapon range. Keyboard shortcuts:
+  Esc drop currency, Ctrl/Cmd+Z undo, ←/→ step in tutorial mode.
 - `TODO(0.5-verify)` markers in mechanics.ts: Greater/Perfect min mod level
   (50/70), Vaal weights + beyond-limits multiplier (1.1–1.3 guess), catalyst
   quality-per-use formula, catalysing-exaltation weight boost, jewel rare
@@ -162,10 +167,12 @@ Engine essentials:
 ## Verification bar (keep it)
 
 Every phase so far shipped with: unit/property/golden tests on the engine
-(89 passing — omen interaction order, essence family, catalysts, jewels,
-display-unit remapping, odds-vs-empirical, share-link roundtrip),
+(94 passing — omen interaction order, essence family, catalysts, jewels,
+display-unit remapping, odds-vs-empirical, share-link roundtrip, computed
+defences),
 statistical distribution tests where randomness matters, and for pool
 correctness the Craft of Exile oracle (16 item classes, zero unexplained
-differences). Phase 6's computed defences should get golden tests against
-in-game screenshots or wiki examples. Run the full gate before committing:
+differences). Phase 7 (Runeforging) should keep the pattern: mechanics
+constants with cited sources, golden crafts, and odds-vs-empirical tests
+for anything random. Run the full gate before committing:
 `npm run build && npm run lint && npm test && npm run data:validate`.
