@@ -739,3 +739,8 @@ button.primary {
 .step-log .step-header[role="button"]:hover span {
   color: #e8d5a0;
 }
+
+/* values changed by local mods render in the game's "augmented" blue */
+.stat-augmented {
+  color: #8888ff;
+}

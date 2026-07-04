@@ -22,7 +22,18 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") useApp.getState().selectCurrency(undefined);
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+      const state = useApp.getState();
+      if (e.key === "Escape") {
+        state.selectCurrency(undefined);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        state.undo();
+      } else if (e.key === "ArrowLeft" && state.replayIndex !== undefined) {
+        state.setReplay(state.replayIndex - 1);
+      } else if (e.key === "ArrowRight" && state.replayIndex !== undefined) {
+        state.setReplay(state.replayIndex + 1);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -88,6 +99,7 @@ export default function App() {
                     type="button"
                     onClick={app.undo}
                     disabled={app.session.steps.length === 0}
+                    title="Ctrl+Z"
                   >
                     Undo
                   </button>

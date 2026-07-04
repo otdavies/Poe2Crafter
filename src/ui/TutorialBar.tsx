@@ -18,7 +18,7 @@ export function TutorialBar({ currency, session, index, onStep, onExit }: {
   const next = index < total ? session.steps[index] : undefined;
   return (
     <div className="tutorial-bar">
-      <button type="button" onClick={() => onStep(index - 1)} disabled={index === 0}>
+      <button type="button" onClick={() => onStep(index - 1)} disabled={index === 0} title="←">
         ◀ Back
       </button>
       <div className="tutorial-status">
@@ -41,6 +41,7 @@ export function TutorialBar({ currency, session, index, onStep, onExit }: {
         className="primary"
         onClick={() => onStep(index + 1)}
         disabled={!next}
+        title="→"
       >
         Apply ▶
       </button>

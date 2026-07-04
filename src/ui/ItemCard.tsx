@@ -1,8 +1,14 @@
 /** Game-style item tooltip for the item being crafted. */
-import type { BaseItem } from "../data/schema.ts";
+import type { BaseItem, BaseProperties } from "../data/schema.ts";
 import type { EngineData } from "../engine/data.ts";
+import { computedProperties } from "../engine/defences.ts";
 import { effectiveValues, maxQuality, qualityTag, type Item, type RolledMod } from "../engine/item.ts";
 import { renderModText } from "./modtext.ts";
+
+type PropKey = keyof BaseProperties;
+type Augmented = ReadonlySet<PropKey>;
+/** label, display value, whether any shown property was modified locally */
+type StatRow = [string, string, boolean];
 
 function ModLine({ data, item, rolled, kind }: {
   data: EngineData;
@@ -21,34 +27,42 @@ function ModLine({ data, item, rolled, kind }: {
   );
 }
 
-const defenceRows = (p: NonNullable<BaseItem["properties"]>): [string, string][] => {
-  const rows: [string, string][] = [];
-  if (p.blockChance) rows.push(["Block chance", `${p.blockChance}%`]);
-  if (p.armour) rows.push(["Armour", `${p.armour}`]);
-  if (p.evasion) rows.push(["Evasion Rating", `${p.evasion}`]);
-  if (p.energyShield) rows.push(["Energy Shield", `${p.energyShield}`]);
-  if (p.ward) rows.push(["Runic Ward", `${p.ward}`]);
+const defenceRows = (p: BaseProperties, aug: Augmented): StatRow[] => {
+  const rows: StatRow[] = [];
+  if (p.blockChance) rows.push(["Block chance", `${p.blockChance}%`, aug.has("blockChance")]);
+  if (p.armour) rows.push(["Armour", `${p.armour}`, aug.has("armour")]);
+  if (p.evasion) rows.push(["Evasion Rating", `${p.evasion}`, aug.has("evasion")]);
+  if (p.energyShield) rows.push(["Energy Shield", `${p.energyShield}`, aug.has("energyShield")]);
+  if (p.ward) rows.push(["Runic Ward", `${p.ward}`, aug.has("ward")]);
   return rows;
 };
 
 const damageSpan = (min?: number, max?: number): string | undefined =>
   min !== undefined && max !== undefined ? `${min}-${max}` : undefined;
 
-const weaponRows = (p: NonNullable<BaseItem["properties"]>): [string, string][] => {
-  const rows: [string, string][] = [];
+const weaponRows = (p: BaseProperties, aug: Augmented): StatRow[] => {
+  const rows: StatRow[] = [];
   const phys = damageSpan(p.physMin, p.physMax);
-  if (phys) rows.push(["Physical Damage", phys]);
+  if (phys) rows.push(["Physical Damage", phys, aug.has("physMin") || aug.has("physMax")]);
   const elemental = [
     damageSpan(p.fireMin, p.fireMax),
     damageSpan(p.coldMin, p.coldMax),
     damageSpan(p.lightningMin, p.lightningMax),
   ].filter((s): s is string => s !== undefined);
-  if (elemental.length > 0) rows.push(["Elemental Damage", elemental.join(", ")]);
+  if (elemental.length > 0) {
+    const elementalAug = (["fireMin", "fireMax", "coldMin", "coldMax", "lightningMin", "lightningMax"] as PropKey[])
+      .some((k) => aug.has(k));
+    rows.push(["Elemental Damage", elemental.join(", "), elementalAug]);
+  }
   const chaos = damageSpan(p.chaosMin, p.chaosMax);
-  if (chaos) rows.push(["Chaos Damage", chaos]);
-  if (p.critChance) rows.push(["Critical Hit Chance", `${p.critChance}%`]);
-  if (p.attacksPerSecond) rows.push(["Attacks per Second", `${p.attacksPerSecond}`]);
-  if (p.reloadTime) rows.push(["Reload Time", `${p.reloadTime}`]);
+  if (chaos) rows.push(["Chaos Damage", chaos, aug.has("chaosMin") || aug.has("chaosMax")]);
+  if (p.critChance) {
+    rows.push(["Critical Hit Chance", `${p.critChance}%`, aug.has("critChance")]);
+  }
+  if (p.attacksPerSecond) {
+    rows.push(["Attacks per Second", `${p.attacksPerSecond}`, aug.has("attacksPerSecond")]);
+  }
+  if (p.reloadTime) rows.push(["Reload Time", `${p.reloadTime}`, aug.has("reloadTime")]);
   return rows;
 };
 
@@ -70,8 +84,9 @@ export function ItemCard({ data, item, onClick, active }: {
   active?: boolean;
 }) {
   const base = data.base(item.baseId);
+  const { properties, augmented } = computedProperties(data, item);
   const stats = base.properties
-    ? [...defenceRows(base.properties), ...weaponRows(base.properties)]
+    ? [...defenceRows(properties, augmented), ...weaponRows(properties, augmented)]
     : [];
   const requirements = requirementsLine(base);
   const tag = qualityTag(item);
@@ -97,10 +112,12 @@ export function ItemCard({ data, item, onClick, active }: {
               </span>
             </li>
           )}
-          {stats.map(([label, value]) => (
+          {stats.map(([label, value, isAugmented]) => (
             <li key={label} className="stat-line">
               <span>{label}</span>
-              <span className="stat-value">{value}</span>
+              <span className={`stat-value ${isAugmented ? "stat-augmented" : ""}`}>
+                {value}
+              </span>
             </li>
           ))}
         </ul>
