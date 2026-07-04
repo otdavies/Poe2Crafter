@@ -23,9 +23,12 @@ Zustand + Vitest, oxlint).
 | 5 | Odds panel (hover currency → hit chances), share links (lz-string URL hash), tutorial step-through mode | ✅ done |
 | 6 | Keyboard shortcuts, computed defences (local mods folded into base stats), data-refresh automation PR flow (existed since phase 1) | ✅ done |
 | 6.5 | Desecration: abyssal bones + Well of Souls reveal (user request) | ✅ done |
-| 7 | Runes + Runeforging (0.5 league mechanic, 213 runes; bundle already has Runes category + Runemastered bases) | **⬅ NEXT** |
+| 7 | Runes + sockets (Artificer's Orb, 213 datamined runes, Runes tab) | ✅ done |
+| 8 | Game-mimicry UI: draggable inventory + stash grid, items dragged between them, click-for-click crafting flow (standing user goal: "fully mimic the in-game UI") | **⬅ NEXT** |
 
-Recombination is deliberately out of scope (disabled in 0.5 anyway).
+Recombination is deliberately out of scope (disabled in 0.5 anyway). The
+Verisium Anvil (spend Verisium for Runic Ward / base upgrades) is deferred:
+no source publishes its cost/ward formula — needs in-game numbers.
 
 ## Architecture (three strict layers)
 
@@ -139,6 +142,31 @@ tutorial replay work unchanged. Out of scope: Preserved Vertebrae
 (waystones, shown dimmed) and Altered Collarbone (breach-ring
 desecration).
 
+## Runes + sockets (phase 7)
+
+0.5 "Runes of Aldur" socketables. Data: `public/data/0.5/runes.json` (213
+runes) compiled from the repoe `augments.json` export joined with
+base_items for names and the trade snapshot for ids/icons (join asserted
+in validate.ts; `tradeSlug` now keeps unicode letters —
+"legacy-of-mjölner"). Each rune has per-host-class effect variants with
+FIXED values embedded in the text (no rolls; bonded_stat_text = Shaman
+ascendancy passives, not compiled). Rules in mechanics.ts `SOCKET_MAX`:
+body armours + two-handers hold 2 sockets, other socketable classes 1,
+jewellery/quivers/jewels none; Artificer's Orb (`ARTIFICER`) adds one.
+Engine: `src/engine/runes.ts` (canAddSocket / canSocketRune / socketRune /
+runeEffectFor); `Item.sockets: (string|null)[]`; socketing into an
+occupied socket DESTROYS the old rune; limit groups from the datamine
+(`limit: "self" | "ancient" | "aldurs-legacy"` = one per item, ignoring
+the socket being overwritten). Rune local stats fold into
+computedProperties by zipping the numbers in the effect text with its stat
+ids (display units — no datamine scale). UI: Runes stash tab (15-kind ×
+4-tier grid + Runecrafted/Warding/Ancient/Fabled/Legacy sections), socket
+circles on the item card (click a circle to socket the held rune into
+exactly that socket; empty circles are pointer-events:none so card clicks
+pass through), rune lines render blue with a "(rune)" tag. The store's
+`applySelected(socketIndex?)` carries the clicked socket. Everything is
+deterministic — odds show the granted effect text as notes.
+
 ## Game-accurate tooltip (user feedback, post-phase-6)
 
 Ongoing mission: the UI should match the in-game look as closely as
@@ -152,11 +180,14 @@ Holding **Alt** (or the topbar "Alt info" toggle) shows advanced mod
 descriptions like the game: an `Item Level:` line, per-mod grey headers
 `Prefix Modifier "Hale" (Tier: 7) — Life`, and roll ranges after each
 value (`renderModTextRanges`; ranges always display low→high). Tiers come
-from `src/engine/tiers.ts`: **PoE2 tiers count UP** (Tier 1 = weakest;
-GGG reversed PoE1 so new top tiers can be added) — the ladder is every
-same-generation/same-group mod spawnable on the base ignoring ilvl;
-essence-only mods are inserted into the same ladder (approximation). Tag
-lists shown are the mod's catalystTags minus compound `a_b` duplicates.
+from `src/engine/tiers.ts`: **Tier 1 is the STRONGEST** (0.5, verified in
+game by the project owner — an earlier count-up encoding was reversed on
+their feedback) — the ladder is every same-generation/same-group mod
+spawnable on the base ignoring ilvl; essence-only mods are inserted into
+the same ladder (approximation). Tag lists shown are the mod's
+catalystTags minus compound `a_b` duplicates. The base picker shows a
+live ItemCard preview that IS the starting item (startCraft takes the
+built Item, implicit rolls included).
 
 ## Conventions & gotchas
 
@@ -216,14 +247,22 @@ lists shown are the mod's catalystTags minus compound `a_b` duplicates.
   min-modifier-level 40 is vacuous against the current datamine (every
   equipment desecrated mod requires level 65). Bone odds show single-draw
   weights with a "choice of 3" note — the pick itself is the player's.
+- Rune `TODO(0.5-verify)` markers (mechanics.ts SOCKET_MAX): caster-weapon
+  and talisman socket capacity (staff treated as two-handed = 2); the
+  Ancient-augment limit is per CHARACTER in guides, encoded per item;
+  whether socketing bypasses the corrupted-items-can't-change rule
+  (currently blocked). Soul Cores / Idols / Abyssal Eyes are datamined in
+  augments.json but not compiled (character-build socketables, absent from
+  the trade snapshot). Emergent/Tempered runes are compiled but invisible
+  in the stash until a trade snapshot lists them.
 
 ## Verification bar (keep it)
 
 Every phase so far shipped with: unit/property/golden tests on the engine
-(117 passing — omen interaction order, essence family, catalysts, jewels,
+(134 passing — omen interaction order, essence family, catalysts, jewels,
 display-unit remapping, odds-vs-empirical, share-link roundtrip, computed
 defences, tier numbering, item naming, advanced-range rendering,
-desecration reveal/omens/putrefaction),
+desecration reveal/omens/putrefaction, rune sockets/limits/folding),
 statistical distribution tests where randomness matters, and for pool
 correctness the Craft of Exile oracle (16 item classes, zero unexplained
 differences). Phase 7 (Runeforging) should keep the pattern: mechanics
