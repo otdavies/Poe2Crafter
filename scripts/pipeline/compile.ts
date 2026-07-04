@@ -374,6 +374,21 @@ const BONES: CurrencyItem[] = ([
 }));
 currency = [...currency.filter((c) => c.category !== "Abyss"), ...BONES];
 
+// Inventory stack sizes from the datamine (Exalted Orb 20, essences /
+// runes / omens 10, …) — currencies live in grids as 1×1 stackables.
+if (cached.get("base_items.min.json")) {
+  const rawAll = await loadJson<Record<string, any>>("base_items.min.json");
+  const stackByName = new Map<string, number>();
+  for (const b of Object.values(rawAll)) {
+    const s = b?.properties?.stack_size;
+    if (typeof s === "number" && s > 0 && b.name) stackByName.set(b.name, s);
+  }
+  for (const c of currency) {
+    const s = stackByName.get(c.name);
+    if (s) c.stack = s;
+  }
+}
+
 const iconByName = new Map(currency.map((c) => [c.name, c.icon]));
 
 const essences: Essence[] = Object.entries(essenceLua)

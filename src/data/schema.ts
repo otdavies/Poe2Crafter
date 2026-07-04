@@ -142,6 +142,8 @@ export interface CurrencyItem {
   icon: string;
   /** trade static category, e.g. "Currency" | "Ritual" | "Breach" */
   category: string;
+  /** Datamined inventory stack size (currencies are 1×1 stackables). */
+  stack?: number;
 }
 
 export interface Essence {
