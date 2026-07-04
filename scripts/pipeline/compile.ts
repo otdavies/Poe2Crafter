@@ -14,6 +14,7 @@ import { createHash } from "node:crypto";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseLuaAssignments, parseLuaData } from "./lua.ts";
+import { tradeSlug } from "../../src/engine/data.ts";
 import { CACHE_DIR, LEAGUE, OUT_DIR, POB_BASE_FILES, POE_CDN, SOURCES } from "./sources.ts";
 import type {
   AbyssalLord,
@@ -25,6 +26,8 @@ import type {
   DistilledEmotion,
   Essence,
   Mod,
+  Rune,
+  RuneEffect,
 } from "../../src/data/schema.ts";
 
 /** Equipment classes the simulator supports (jewels come from PoB, below). */
@@ -393,6 +396,123 @@ const emotions: DistilledEmotion[] = Object.entries(emotionsLua)
   }))
   .sort((a, b) => a.tierLevel - b.tierLevel || a.name.localeCompare(b.name));
 
+// --- Runes (0.5 Runes of Aldur socketables) ----------------------------------
+// repoe augments.json: per-host-class effects of every socketable, keyed by
+// metadata id (names join through base_items). We ship the Rune-type entries;
+// Soul Cores / Idols / Abyssal Eyes are character-build socketables the
+// simulator doesn't model (and the trade snapshot doesn't list).
+
+/**
+ * Augment `target` strings → our item classes. "Quarterstaves" is the GGG
+ * class "Warstaff". Group targets follow the game's equipment taxonomy:
+ * armour includes shields/bucklers/foci, martial = every attack weapon.
+ */
+const MARTIAL_CLASSES = [
+  "Bow", "Claw", "Crossbow", "Dagger", "Flail", "Spear", "Warstaff",
+  "One Hand Axe", "One Hand Mace", "One Hand Sword",
+  "Two Hand Axe", "Two Hand Mace", "Two Hand Sword",
+];
+const CASTER_CLASSES = ["Wand", "Staff", "Sceptre"];
+const ARMOUR_CLASSES = [
+  "Body Armour", "Boots", "Gloves", "Helmet", "Shield", "Buckler", "Focus",
+];
+const TARGET_CLASSES: Record<string, string[]> = {
+  "All Equipment": [...MARTIAL_CLASSES, ...CASTER_CLASSES, ...ARMOUR_CLASSES, "Talisman"],
+  Armour: ARMOUR_CLASSES,
+  Weapon: [...MARTIAL_CLASSES, ...CASTER_CLASSES],
+  "[MartialWeapon|Martial Weapon]": MARTIAL_CLASSES,
+  "[CasterWeapon|Caster Weapon]": CASTER_CLASSES,
+  "[MartialWeapon|Martial Weapon], Wand or Staff": [...MARTIAL_CLASSES, "Wand", "Staff"],
+  "Wand or Staff": ["Wand", "Staff"],
+  "Crossbow, Bow or Spear": ["Crossbow", "Bow", "Spear"],
+  "One Hand Mace or Quarterstaff": ["One Hand Mace", "Warstaff"],
+  "One Hand Mace, Two Hand Mace or Talisman": ["One Hand Mace", "Two Hand Mace", "Talisman"],
+  "Quarterstaff or Spear": ["Warstaff", "Spear"],
+  "Shields and Bucklers": ["Shield", "Buckler"],
+  "Body Armours": ["Body Armour"],
+  Boots: ["Boots"],
+  Gloves: ["Gloves"],
+  Helmets: ["Helmet"],
+  Bows: ["Bow"],
+  Bucklers: ["Buckler"],
+  Crossbows: ["Crossbow"],
+  Foci: ["Focus"],
+  "One Hand Maces": ["One Hand Mace"],
+  Quarterstaves: ["Warstaff"],
+  Sceptres: ["Sceptre"],
+  Shields: ["Shield"],
+  Spears: ["Spear"],
+  Staves: ["Staff"],
+  Talismans: ["Talisman"],
+  "Two Hand Maces": ["Two Hand Mace"],
+  Wands: ["Wand"],
+};
+
+function runeLimit(limit: string | undefined): Rune["limit"] {
+  if (!limit) return undefined;
+  if (limit.includes("Ancient")) return "ancient";
+  if (limit.includes("Aldur")) return "aldurs-legacy";
+  return "self"; // "1": at most one copy of this augment per item
+}
+
+let runes: Rune[];
+if (cached.get("augments.min.json") && cached.get("base_items.min.json")) {
+  const rawAugments = await loadJson<Record<string, any>>("augments.min.json");
+  const rawBases = await loadJson<Record<string, any>>("base_items.min.json");
+  const unknownTargets = new Set<string>();
+  runes = Object.entries(rawAugments)
+    .filter(([, a]) => a.type_id === "Rune")
+    .map(([id, a]): Rune | null => {
+      const name: string = rawBases[id]?.name ?? "";
+      if (!name || name.startsWith("[DNT")) return null;
+      // Categories with only bonded_stat_text are Shaman-ascendancy bonded
+      // effects (character passive, not item crafting) — not shipped.
+      const effects: RuneEffect[] = Object.values(a.categories as Record<string, any>)
+        .filter((c) => (c.stat_text ?? []).length > 0)
+        .map((c) => {
+          const targets: string[] = Array.isArray(c.target) ? c.target : [c.target];
+          const itemClasses = [
+            ...new Set(
+              targets.flatMap((t) => {
+                const classes = TARGET_CLASSES[t];
+                if (!classes) unknownTargets.add(t);
+                return classes ?? [];
+              }),
+            ),
+          ];
+          return {
+            itemClasses,
+            text: ((c.stat_text ?? []) as string[]).flatMap((t) => stripMarkup(t).split("\n")),
+            stats: ((c.stats ?? []) as { id: string }[]).map((s) => s.id),
+          };
+        });
+      return { id: tradeSlug(name), name, limit: runeLimit(a.limit), effects };
+    })
+    .filter((r): r is Rune => r !== null)
+    .sort((a, b) => a.id.localeCompare(b.id));
+  for (const rune of runes) {
+    if (rune.limit === undefined) delete rune.limit;
+  }
+  if (unknownTargets.size > 0) {
+    console.warn(`WARN: unmapped augment targets: ${[...unknownTargets].join(" | ")}`);
+  }
+} else {
+  runes = await loadPrevious<Rune[]>("runes.json");
+}
+
+// The trade snapshot's Runes category should join runes.json by id — warn on
+// drift so a stale snapshot or a renamed rune is caught at compile time.
+{
+  const runeIds = new Set(runes.map((r) => r.id));
+  const unmatched = currency.filter((c) => c.category === "Runes" && !runeIds.has(c.id));
+  if (unmatched.length > 0) {
+    console.warn(
+      `WARN: ${unmatched.length} trade runes have no augment data: ` +
+        unmatched.slice(0, 5).map((c) => c.id).join(", "),
+    );
+  }
+}
+
 // --- Tags --------------------------------------------------------------------
 const tags: string[] = cached.get("tags.min.json")
   ? await loadJson<string[]>("tags.min.json")
@@ -437,6 +557,7 @@ const meta: BundleMeta = {
     currency: currency.length,
     essences: essences.length,
     emotions: emotions.length,
+    runes: runes.length,
     tags: tags.length,
   },
 };
@@ -449,6 +570,7 @@ const outputs: Record<string, unknown> = {
   "currency.json": currency,
   "essences.json": essences,
   "emotions.json": emotions,
+  "runes.json": runes,
   "tags.json": tags,
 };
 for (const [file, data] of Object.entries(outputs)) {

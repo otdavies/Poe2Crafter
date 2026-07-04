@@ -15,19 +15,21 @@ import type {
   DistilledEmotion,
   Essence,
   Mod,
+  Rune,
 } from "../../src/data/schema.ts";
 
 async function load<T>(file: string): Promise<T> {
   return JSON.parse(await readFile(join(OUT_DIR, file), "utf8")) as T;
 }
 
-const [meta, bases, mods, currency, essences, emotions, tags] = await Promise.all([
+const [meta, bases, mods, currency, essences, emotions, runes, tags] = await Promise.all([
   load<BundleMeta>("meta.json"),
   load<BaseItem[]>("bases.json"),
   load<Mod[]>("mods.json"),
   load<CurrencyItem[]>("currency.json"),
   load<Essence[]>("essences.json"),
   load<DistilledEmotion[]>("emotions.json"),
+  load<Rune[]>("runes.json"),
   load<string[]>("tags.json"),
 ]);
 
@@ -108,6 +110,28 @@ check(
   `only ${bodiesWithDefence.length}/${bodies.length} body armours have defence stats`,
 );
 
+// Runes: unique ids, effects target known item classes, every effect has
+// display text, and every trade-snapshot rune joins runes.json by id.
+const knownClasses = new Set(bases.map((b) => b.itemClass));
+const runeIds = new Set<string>();
+for (const rune of runes) {
+  check(!runeIds.has(rune.id), `rune: duplicate id ${rune.id}`);
+  runeIds.add(rune.id);
+  check(rune.effects.length > 0, `rune ${rune.id}: no effects`);
+  for (const effect of rune.effects) {
+    check(effect.itemClasses.length > 0, `rune ${rune.id}: effect with no item classes`);
+    check(effect.text.length > 0, `rune ${rune.id}: effect with no display text`);
+    for (const itemClass of effect.itemClasses) {
+      check(knownClasses.has(itemClass), `rune ${rune.id}: unknown class ${itemClass}`);
+    }
+  }
+}
+for (const c of currency) {
+  if (c.category === "Runes") {
+    check(runeIds.has(c.id), `trade rune ${c.id} has no augment data in runes.json`);
+  }
+}
+
 // Bundle-level sanity: the counts a 0.5.x export must roughly have
 check(bases.length > 1000, `too few bases: ${bases.length}`);
 check(mods.filter((m) => m.generation === "prefix").length > 500, "too few prefixes");
@@ -126,6 +150,6 @@ if (failures.length > 0) {
 }
 console.log(
   `OK: bundle valid — ${bases.length} bases, ${mods.length} mods, ` +
-    `${essences.length} essences, ${emotions.length} emotions, ${currency.length} currency ` +
-    `(${warnings.length} warnings)`,
+    `${essences.length} essences, ${emotions.length} emotions, ${runes.length} runes, ` +
+    `${currency.length} currency (${warnings.length} warnings)`,
 );

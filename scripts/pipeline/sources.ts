@@ -52,6 +52,8 @@ export const SOURCES: Source[] = [
   { file: "base_items.min.json", url: `${REPOE}/base_items.min.json`, fallback: `${REPOE_MIRROR}/base_items.json` },
   { file: "item_classes.min.json", url: `${REPOE}/item_classes.min.json`, fallback: `${REPOE_MIRROR}/item_classes.json` },
   { file: "tags.min.json", url: `${REPOE}/tags.min.json`, fallback: `${REPOE_MIRROR}/tags.json` },
+  // socketables (runes/soul cores) with per-host-class effects
+  { file: "augments.min.json", url: `${REPOE}/augments.min.json`, fallback: `${REPOE_MIRROR}/augments.json` },
 
   // Path of Building PoE2 fork: mappings the dat export lacks
   { file: "Essence.lua", url: `${POB}/Essence.lua` },

@@ -1,6 +1,6 @@
 /** Test helper: load the real committed data bundle into an EngineData. */
 import { readFileSync } from "node:fs";
-import type { BaseItem, DistilledEmotion, Essence, Mod } from "../data/schema.ts";
+import type { BaseItem, DistilledEmotion, Essence, Mod, Rune } from "../data/schema.ts";
 import { EngineData } from "./data.ts";
 import type { Item } from "./item.ts";
 import { rollablePool } from "./modpool.ts";
@@ -16,6 +16,7 @@ export function loadEngineData(): EngineData {
       read<BaseItem[]>("bases.json"),
       read<Essence[]>("essences.json"),
       read<DistilledEmotion[]>("emotions.json"),
+      read<Rune[]>("runes.json"),
     );
   }
   return cached;

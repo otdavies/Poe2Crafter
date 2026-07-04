@@ -2,7 +2,7 @@
  * EngineData: indexed view over the compiled data bundle. Built once at app
  * startup (or per test) from the raw JSON arrays.
  */
-import type { BaseItem, DistilledEmotion, Essence, Mod } from "../data/schema.ts";
+import type { BaseItem, DistilledEmotion, Essence, Mod, Rune } from "../data/schema.ts";
 
 /**
  * Trade-API id for a display name ("Lesser Essence of the Body" ->
@@ -10,10 +10,11 @@ import type { BaseItem, DistilledEmotion, Essence, Mod } from "../data/schema.ts
  * a bundle test asserts the join holds for every essence and emotion.
  */
 export function tradeSlug(name: string): string {
+  // Unicode letters survive ("Legacy of Mjölner" -> "legacy-of-mjölner").
   return name
     .toLowerCase()
     .replace(/'/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
     .replace(/^-|-$/g, "");
 }
 
@@ -29,12 +30,15 @@ export class EngineData {
   /** Essences/emotions keyed by trade currency id. */
   readonly essenceByCurrencyId: ReadonlyMap<string, Essence>;
   readonly emotionByCurrencyId: ReadonlyMap<string, DistilledEmotion>;
+  /** Socketable runes keyed by trade currency id. */
+  readonly runeById: ReadonlyMap<string, Rune>;
 
   constructor(
     mods: Mod[],
     bases: BaseItem[],
     essences: Essence[] = [],
     emotions: DistilledEmotion[] = [],
+    runes: Rune[] = [],
   ) {
     this.modById = new Map(mods.map((m) => [m.id, m]));
     this.baseById = new Map(bases.map((b) => [b.id, b]));
@@ -50,6 +54,7 @@ export class EngineData {
     this.corruptedPool = mods.filter((m) => m.generation === "corrupted");
     this.essenceByCurrencyId = new Map(essences.map((e) => [tradeSlug(e.name), e]));
     this.emotionByCurrencyId = new Map(emotions.map((e) => [tradeSlug(e.name), e]));
+    this.runeById = new Map(runes.map((r) => [r.id, r]));
   }
 
   mod(id: string): Mod {
@@ -62,5 +67,11 @@ export class EngineData {
     const base = this.baseById.get(id);
     if (!base) throw new Error(`unknown base: ${id}`);
     return base;
+  }
+
+  rune(id: string): Rune {
+    const rune = this.runeById.get(id);
+    if (!rune) throw new Error(`unknown rune: ${id}`);
+    return rune;
   }
 }

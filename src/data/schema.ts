@@ -102,6 +102,32 @@ export interface Mod {
   stats: ModStat[];
 }
 
+/**
+ * One host-class variant of a rune's effect. Rune effects are FIXED values
+ * (no rolls) — the numbers live inside the display text.
+ */
+export interface RuneEffect {
+  /** Item classes this variant applies to when the rune is socketed. */
+  itemClasses: string[];
+  /** Display lines, markup stripped ("16% increased Physical Damage"). */
+  text: string[];
+  /** Stat ids behind the lines, in display order (for local-stat folding). */
+  stats: string[];
+}
+
+/** A socketable rune (0.5 Runes of Aldur; datamined from repoe augments). */
+export interface Rune {
+  /** Trade currency id (joins currency.json by name), e.g. "iron-rune". */
+  id: string;
+  name: string;
+  /**
+   * Socketing limit: "self" = at most one copy of this rune per item;
+   * "ancient" / "aldurs-legacy" = at most one rune of that group per item.
+   */
+  limit?: "self" | "ancient" | "aldurs-legacy";
+  effects: RuneEffect[];
+}
+
 export interface CurrencyItem {
   /** trade API id, e.g. "chaos" */
   id: string;
