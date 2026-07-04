@@ -1,16 +1,16 @@
 /**
  * Mod tier numbering for advanced mod descriptions (hold Alt in game).
  *
- * PoE2 reversed PoE1's numbering: tiers count UP, so Tier 1 is the WEAKEST
- * roll of a family and the best roll is the highest number — GGG did this
- * so new top tiers can be added without renumbering (community-verified,
- * July 2026: poe2 wiki "Tier", game8.co/605507, pathofexile.com forum
- * thread 3679890 complaining about exactly this reversal).
+ * As of 0.5, Tier 1 is the STRONGEST roll of a family (PoE1-style, verified
+ * in game by the project owner July 2026; guides agree — game8.co/605507,
+ * mmojugg "Understanding item tiers in PoE2": "Tier 1 usually represents
+ * the strongest value range"). Early-access builds counted the other way
+ * (T1 weakest); if GGG flips it again this module is the only place to fix.
  *
  * A mod's family ladder is every mod sharing its generation and group set
  * that can spawn on the item's BASE (spawn weight > 0 for the base's tags,
- * no ilvl gate — higher tiers than the item can roll still count), ordered
- * weakest-first by required ilvl, then value magnitude. Mods granted from
+ * no ilvl gate — tiers the item can't roll yet still count), ordered
+ * strongest-first by required ilvl, then value magnitude. Mods granted from
  * outside the general pool (essence-only, alloys) are inserted into that
  * same ladder by the same ordering — the closest match to the in-game
  * display computable from datamined weights.
@@ -50,5 +50,7 @@ export function modTier(
   );
   if (!family.some((mod) => mod.id === target.id)) family.push(target);
   family.sort(ladderOrder);
-  return { tier: family.findIndex((mod) => mod.id === target.id) + 1, count: family.length };
+  // Ladder is sorted weakest-first; T1 is the top of it.
+  const index = family.findIndex((mod) => mod.id === target.id);
+  return { tier: family.length - index, count: family.length };
 }

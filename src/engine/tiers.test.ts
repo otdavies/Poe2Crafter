@@ -1,7 +1,7 @@
 /**
- * Tier numbering golden tests: PoE2 tiers count up (Tier 1 = weakest), the
- * ladder covers every same-family mod spawnable on the base regardless of
- * item level, and essence-granted mods slot into the same ladder.
+ * Tier numbering golden tests: Tier 1 = strongest (0.5, in-game verified),
+ * the ladder covers every same-family mod spawnable on the base regardless
+ * of item level, and essence-granted mods slot into the same ladder.
  */
 import { describe, expect, it } from "vitest";
 import type { Mod } from "../data/schema.ts";
@@ -29,22 +29,23 @@ function largestFamily(): Mod[] {
 }
 
 describe("modTier", () => {
-  it("numbers a family 1..count, counting up from the lowest ilvl", () => {
+  it("numbers a family 1..count with Tier 1 at the highest ilvl", () => {
     const family = largestFamily();
     expect(family.length).toBeGreaterThan(3);
     const tiers = family.map((mod) => modTier(data, item, mod.id)!);
     for (const t of tiers) expect(t.count).toBe(family.length);
     expect(new Set(tiers.map((t) => t.tier)).size).toBe(family.length);
 
+    // Ascending tier number = descending strength = descending required ilvl.
     const byTier = [...family].sort(
       (a, b) => modTier(data, item, a.id)!.tier - modTier(data, item, b.id)!.tier,
     );
     for (let i = 1; i < byTier.length; i++) {
-      expect(byTier[i].ilvl).toBeGreaterThanOrEqual(byTier[i - 1].ilvl);
+      expect(byTier[i].ilvl).toBeLessThanOrEqual(byTier[i - 1].ilvl);
     }
-    const minIlvl = Math.min(...family.map((m) => m.ilvl));
+    const maxIlvl = Math.max(...family.map((m) => m.ilvl));
     const tierOne = byTier[0];
-    expect(tierOne.ilvl).toBe(minIlvl);
+    expect(tierOne.ilvl).toBe(maxIlvl);
     expect(modTier(data, item, tierOne.id)!.tier).toBe(1);
   });
 
