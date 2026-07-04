@@ -10,8 +10,9 @@ import { actionFor } from "../engine/actions.ts";
 import { tradeSlug, type EngineData } from "../engine/data.ts";
 import type { Item } from "../engine/item.ts";
 import { ALLOYS, BONES, CATALYSTS, CORRUPTED_ESSENCES, OMEN } from "../engine/mechanics.ts";
+import { ItemGrid } from "./ItemGrid.tsx";
 
-const TABS = ["Currency", "Essences", "Runes", "Omens", "Abyss", "Breach", "Delirium", "Verisium"] as const;
+const TABS = ["Items", "Currency", "Essences", "Runes", "Omens", "Abyss", "Breach", "Delirium", "Verisium"] as const;
 type TabId = (typeof TABS)[number];
 
 /** The stash tab a currency id lives in (tutorial mode jumps to it). */
@@ -154,6 +155,7 @@ export function StashPanel({
   onHover,
   highlight,
   readOnly = false,
+  onHoverCraft,
 }: {
   data: EngineData;
   currency: CurrencyItem[];
@@ -168,6 +170,8 @@ export function StashPanel({
   highlight?: { currencyId?: string; omens: readonly string[] };
   /** Tutorial mode: slots are display-only. */
   readOnly?: boolean;
+  /** Items tab: the centre column previews the hovered craft. */
+  onHoverCraft?: (key: number | undefined) => void;
 }) {
   const [tab, setTab] = useState<TabId>("Currency");
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
@@ -321,6 +325,12 @@ export function StashPanel({
       </div>
 
       <div className="stash-body">
+        {tab === "Items" && (
+          <div className="stash-section stash-items">
+            <ItemGrid container="stash" onHoverCraft={onHoverCraft} />
+          </div>
+        )}
+
         {tab === "Currency" &&
           CURRENCY_SECTIONS.map((section) => (
             <div key={section.title} className="stash-section">

@@ -1002,3 +1002,258 @@ button.toggled {
 .stat-augmented {
   color: #8888ff;
 }
+
+/* ---- game-mimicry layout (phase 8) -------------------------------------
+   Stash on the left, the item "tooltip" column in the middle, the character
+   inventory on the right — the game's stash screen. One --cell unit drives
+   every grid so the datamined w×h footprints render true to the game
+   (backpack 12×5, stash tab 12×12, doll slots in cell units). */
+:root {
+  --cell: clamp(26px, 2.55vw, 40px);
+}
+
+.bench-main.game-layout {
+  grid-template-columns: auto minmax(300px, 1fr) auto;
+}
+
+@media (max-width: 1100px) {
+  .bench-main.game-layout {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+}
+
+.item-area .step-log {
+  width: 100%;
+  max-width: 28rem;
+}
+
+/* ---- container grids ---------------------------------------------------- */
+.item-grid {
+  display: grid;
+  position: relative;
+  width: fit-content;
+  border: 1px solid #3a3226;
+  border-radius: 3px;
+  background:
+    linear-gradient(#ffffff08 1px, transparent 1px),
+    linear-gradient(90deg, #ffffff08 1px, transparent 1px),
+    radial-gradient(ellipse at top, #16120d 0%, #0b0908 100%);
+  background-size: var(--cell) var(--cell), var(--cell) var(--cell), 100% 100%;
+  box-shadow: inset 0 0 22px #000c;
+}
+
+/* while an item is held, clicks must land on cells (swap targets the cell) */
+.grid-holding .grid-item {
+  pointer-events: none;
+}
+
+.grid-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 1px;
+  padding: 2px;
+  border: 1px solid;
+  border-radius: 3px;
+  font: inherit;
+  font-size: 0.56rem;
+  line-height: 1.2;
+  text-align: center;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: inset 0 2px 10px #000d;
+}
+
+.grid-item:hover {
+  filter: brightness(1.25);
+}
+
+.tile-name {
+  pointer-events: none;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  -webkit-box-orient: vertical;
+}
+
+.rarity-normal { color: #d8d8d8; border-color: #55504a; background: #24211def; }
+.rarity-magic { color: #9393ff; border-color: #3d3d7a; background: #14142cef; }
+.rarity-rare { color: #ffff77; border-color: #79712f; background: #26230eef; }
+.tile-corrupted { border-color: #b41e1e; }
+
+.tile-active {
+  outline: 2px solid #d4b060aa;
+  outline-offset: -1px;
+}
+
+.grid-ghost {
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.ghost-valid {
+  background: #3fae5a3d;
+  box-shadow: inset 0 0 0 1px #3fae5a99;
+}
+
+.ghost-invalid {
+  background: #c22e2e3d;
+  box-shadow: inset 0 0 0 1px #c22e2e99;
+}
+
+/* ---- character inventory panel ------------------------------------------ */
+.inventory-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.6rem 0.7rem 0.8rem;
+  border: 1px solid #3a3226;
+  border-radius: 5px;
+  background: radial-gradient(ellipse at top, #1c1712 0%, #12100c 60%, #0c0a08 100%);
+  box-shadow: 0 0 0 1px #000, 0 4px 18px #000a;
+  width: fit-content;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #c8a85c;
+}
+
+.doll {
+  display: grid;
+  grid-template-columns: repeat(12, var(--cell));
+  grid-template-rows: repeat(6, var(--cell));
+}
+
+.equip-slot {
+  position: relative;
+  margin: 1px;
+  padding: 0;
+  border: 1px solid #3a3226;
+  border-radius: 4px;
+  background: radial-gradient(circle at 50% 40%, #221c15 0%, #0e0b08 100%);
+  box-shadow: inset 0 2px 8px #000c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font: inherit;
+}
+
+.equip-slot:hover {
+  border-color: #8a744a;
+}
+
+.equip-slot .grid-item {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+}
+
+.slot-accepts {
+  border-color: #3fae5a;
+  box-shadow: inset 0 0 14px #3fae5a55;
+}
+
+.slot-label {
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6a5c42;
+  pointer-events: none;
+}
+
+.flask-row {
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+}
+
+.gear-slot {
+  border: 1px solid #2c261d;
+  border-radius: 4px;
+  background: radial-gradient(circle at 50% 40%, #1c1712 0%, #0d0a07 100%);
+  box-shadow: inset 0 2px 8px #000c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flask-slot {
+  width: var(--cell);
+  height: calc(var(--cell) * 2);
+}
+
+.charm-slot {
+  width: var(--cell);
+  height: var(--cell);
+}
+
+.inventory-footer {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.trash {
+  border: 1px solid #b41e1e;
+  border-radius: 4px;
+  background: #2a0d0d;
+  color: #e66;
+  font: inherit;
+  font-size: 0.72rem;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+}
+
+.trash:hover {
+  background: #3d1010;
+}
+
+/* ---- stash Items tab / picker overlay / cursor ghost --------------------- */
+.stash-items {
+  display: flex;
+  justify-content: center;
+}
+
+.picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: #000000b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  overflow: auto;
+}
+
+.picker-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.cursor-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.cursor-ghost .grid-item {
+  margin: 0;
+}
+
+.cursor-ghost img {
+  width: 34px;
+}

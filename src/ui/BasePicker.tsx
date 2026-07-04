@@ -12,9 +12,11 @@ import { ItemCard } from "./ItemCard.tsx";
 const clampIlvl = (n: number): number =>
   Number.isFinite(n) ? Math.min(100, Math.max(1, Math.round(n))) : 1;
 
-export function BasePicker({ data, onStart }: {
+export function BasePicker({ data, onStart, onCancel }: {
   data: EngineData;
   onStart: (item: Item) => void;
+  /** Shown when items already exist — the picker is then an overlay. */
+  onCancel?: () => void;
 }) {
   const bases = useMemo(() => [...data.baseById.values()], [data]);
   const classes = useMemo(
@@ -76,14 +78,21 @@ export function BasePicker({ data, onStart }: {
             onChange={(e) => setIlvl(Number(e.target.value))}
           />
         </label>
-        <button
-          type="button"
-          className="primary"
-          disabled={!preview}
-          onClick={() => preview && onStart(preview)}
-        >
-          Start crafting
-        </button>
+        <div className="picker-actions">
+          <button
+            type="button"
+            className="primary"
+            disabled={!preview}
+            onClick={() => preview && onStart(preview)}
+          >
+            Start crafting
+          </button>
+          {onCancel && (
+            <button type="button" onClick={onCancel}>
+              Cancel
+            </button>
+          )}
+        </div>
       </section>
       {preview && (
         <div className="base-preview">
