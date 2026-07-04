@@ -24,7 +24,8 @@ Zustand + Vitest, oxlint).
 | 6 | Keyboard shortcuts, computed defences (local mods folded into base stats), data-refresh automation PR flow (existed since phase 1) | ✅ done |
 | 6.5 | Desecration: abyssal bones + Well of Souls reveal (user request) | ✅ done |
 | 7 | Runes + sockets (Artificer's Orb, 213 datamined runes, Runes tab) | ✅ done |
-| 8 | Game-mimicry UI: draggable inventory + stash grid, items dragged between them, click-for-click crafting flow (standing user goal: "fully mimic the in-game UI") | **⬅ NEXT** |
+| 8 | Game-mimicry UI: character inventory (equipment doll + 12×5 backpack), stash Items tab (12×12), pick-up/put-down/swap/equip, multi-item crafting (standing user goal: "fully mimic the in-game UI") | ✅ done |
+| 9 | Game-mimicry polish: real item art (needs an icon resolver — PoE2 CDN URLs are signed), weapon-set I/II slots, hold-drag in addition to click-carry, Verisium Anvil once formula is known | **⬅ NEXT** |
 
 Recombination is deliberately out of scope (disabled in 0.5 anyway). The
 Verisium Anvil (spend Verisium for Runic Ward / base upgrades) is deferred:
@@ -256,16 +257,49 @@ built Item, implicit rolls included).
   the trade snapshot). Emergent/Tempered runes are compiled but invisible
   in the stash until a trade snapshot lists them.
 
+## Game-mimicry inventory (phase 8)
+
+The app is laid out like the game's stash screen: stash panel left, item
+tooltip column centre, character inventory right.
+
+- Geometry (`engine/grid.ts`): backpack 12×5, stash tab 12×12 (game8
+  491346, poe2wiki Stash). Item footprints come from the datamine's
+  `inventory_width/height` already in bases.json (body 2×3, two-handers /
+  bows / crossbows 2×4, spears & staves 1×4, daggers & wands 1×3, …).
+  `canPlace`/`findSpot` (row-major first fit) are pure and tested.
+- Equipment doll (`engine/grid.ts` + `ui/InventoryPanel.tsx`): main hand /
+  off-hand / helmet / body / gloves / boots / belt / amulet / 2 rings,
+  positioned like the game screen; flask + charm slots are rendered but
+  not simulated. Slot acceptance from base tags: `two_hand_weapon` locks
+  the off-hand (bow + quiver excepted), one-handers dual-wield, talismans
+  are two-handed caster weapons. Weapon-set I/II swap not modelled yet.
+- State (`state/store.ts`): multiple crafts, each `{ key, session, place |
+  equipped }`. Game-style cursor: click picks an item up (`pickUp`), click
+  a cell puts it down (`putDown`, swaps with a single blocker), doll slots
+  equip (`equipHeld`), ctrl+click quick-moves inventory ⇄ stash, Escape
+  returns (`returnHeld`), Delete destroys (`discardHeld`). Crafting
+  targets the item you click (`applyTo(key)`), so several items can be
+  worked on side by side; undo/tutorial/share act on the ACTIVE craft.
+- Tiles are rarity-framed name plates, not item art: PoE2's CDN serves
+  only signed image URLs (`/gen/image/<payload>/<sig>/…`), so art can't be
+  linked client-side. The canonical art path is compiled into bases.json
+  (`art`) for a future resolver.
+- The base picker is now an overlay (auto-opens when nothing is crafted;
+  "New base" in the inventory footer). The centre column doubles as the
+  game tooltip: it previews whatever grid tile / doll slot the cursor is
+  over, falling back to the active craft.
+
 ## Verification bar (keep it)
 
 Every phase so far shipped with: unit/property/golden tests on the engine
-(134 passing — omen interaction order, essence family, catalysts, jewels,
+and store (152 passing — omen interaction order, essence family, catalysts, jewels,
 display-unit remapping, odds-vs-empirical, share-link roundtrip, computed
 defences, tier numbering, item naming, advanced-range rendering,
-desecration reveal/omens/putrefaction, rune sockets/limits/folding),
+desecration reveal/omens/putrefaction, rune sockets/limits/folding,
+grid placement/equip rules, store pickup/swap/quick-move),
 statistical distribution tests where randomness matters, and for pool
 correctness the Craft of Exile oracle (16 item classes, zero unexplained
-differences). Phase 7 (Runeforging) should keep the pattern: mechanics
+differences). New phases should keep the pattern: mechanics
 constants with cited sources, golden crafts, and odds-vs-empirical tests
 for anything random. Run the full gate before committing:
 `npm run build && npm run lint && npm test && npm run data:validate`.
