@@ -22,6 +22,7 @@ Zustand + Vitest, oxlint).
 | 4 | Essences (+corrupted, +Verisium Alloys), omens (arming + interaction order), Fracturing Orb, catalysts (quality), liquid emotions on jewels; stash-tab UI + base item stats | ✅ done |
 | 5 | Odds panel (hover currency → hit chances), share links (lz-string URL hash), tutorial step-through mode | ✅ done |
 | 6 | Keyboard shortcuts, computed defences (local mods folded into base stats), data-refresh automation PR flow (existed since phase 1) | ✅ done |
+| 6.5 | Desecration: abyssal bones + Well of Souls reveal (user request) | ✅ done |
 | 7 | Runes + Runeforging (0.5 league mechanic, 213 runes; bundle already has Runes category + Runemastered bases) | **⬅ NEXT** |
 
 Recombination is deliberately out of scope (disabled in 0.5 anyway).
@@ -111,6 +112,33 @@ Engine essentials:
   currency + omens, auto-switches to its tab) and `readOnly`; StepLog dims
   future steps and hides their outcomes (no spoilers), click jumps.
 
+## Desecration (abyssal bones, post-phase-6)
+
+Bones desecrate a RARE item; the Well of Souls offers THREE desecrated
+modifiers and the player keeps one (`src/engine/desecrate.ts`; rules +
+sources in mechanics.ts `BONES`). Key facts: one desecrated mod per item;
+full items lose a random mod first; Gnawed = ilvl ≤ 64 targets, Ancient =
+min modifier level 40; desecrated mods IGNORE the item-level gate (proof
+in mechanics.ts). Omens: Sovereign/Liege/Blackblooded restrict the offer
+to one abyssal lord; Sinistral/Dextral Necromancy force the side;
+Putrefaction replaces ALL mods with desecrated ones + corrupts (no
+reveal); Abyssal Echoes lets the UI reroll the offer once; Omen of Light
+makes ANNULMENT remove only desecrated mods (in planRemoval).
+Data: compile.ts imports the repoe `desecrated` domain (equipment + jewel
+targets; waystone/kulemak/watcher/breach variants excluded) with
+`desecrated: true` + `lord` on the Mod; **EngineData.affixPool excludes
+them** (desecratedPool is separate — never let them leak into
+rollablePool). Bones are curated currency entries (category "Abyss",
+ids/icons from Exiled Exchange 2's dataset) because the carried-forward
+trade snapshot predates them. repoe sources now have a
+raw.githubusercontent mirror fallback (sources.ts) so sandboxes can
+refetch. The interactive flow is store-level: `pendingReveal` +
+`chooseReveal`/`rerollPendingReveal`; the bone CraftAction auto-picks
+uniformly (odds/tests only). Steps record the outcome, so share links and
+tutorial replay work unchanged. Out of scope: Preserved Vertebrae
+(waystones, shown dimmed) and Altered Collarbone (breach-ring
+desecration).
+
 ## Game-accurate tooltip (user feedback, post-phase-6)
 
 Ongoing mission: the UI should match the in-game look as closely as
@@ -182,13 +210,20 @@ lists shown are the mod's catalystTags minus compound `a_b` duplicates.
   per-roll: the exact joint distribution over shrinking pools isn't
   computed. The panel says so in a note; the odds tests only assert
   single-roll actions exactly.
+- Desecration `TODO(0.5-verify)` markers: whether quivers/talismans belong
+  to the jawbone or collarbone matrix; removal side when a necromancy omen
+  is armed on a full item; Putrefaction vs fractured mods; Ancient's
+  min-modifier-level 40 is vacuous against the current datamine (every
+  equipment desecrated mod requires level 65). Bone odds show single-draw
+  weights with a "choice of 3" note — the pick itself is the player's.
 
 ## Verification bar (keep it)
 
 Every phase so far shipped with: unit/property/golden tests on the engine
-(104 passing — omen interaction order, essence family, catalysts, jewels,
+(117 passing — omen interaction order, essence family, catalysts, jewels,
 display-unit remapping, odds-vs-empirical, share-link roundtrip, computed
-defences, tier numbering, item naming, advanced-range rendering),
+defences, tier numbering, item naming, advanced-range rendering,
+desecration reveal/omens/putrefaction),
 statistical distribution tests where randomness matters, and for pool
 correctness the Craft of Exile oracle (16 item classes, zero unexplained
 differences). Phase 7 (Runeforging) should keep the pattern: mechanics
