@@ -172,6 +172,22 @@ pass through), rune lines render blue with a "(rune)" tag. The store's
 `applySelected(socketIndex?)` carries the clicked socket. Everything is
 deterministic — odds show the granted effect text as notes.
 
+**Masterwork Rune** (`mechanics.MASTERWORK_RUNE`) is NOT socketed — it
+"Upgrades a socketed Rune" one tier along the Lesser → base → Greater →
+Perfect ladder (`RUNE_TIERS`). It lives in the rune bundle but `actionFor`
+intercepts it to a dedicated `rune_upgrade` action (`applyMasterwork`;
+`runes.ts` `upgradedRuneId`/`canMasterwork`/`masterworkUpgrade`); the store
+routes it through the same socket-click path as ordinary runes, upgrading
+whichever socketed rune the player clicks. A Perfect or tier-less special
+rune (Ancient/Aldur's) has no higher tier and is blocked. **Non-simulated
+special runes** — the Aldur elemental-conversion breaths, Cadigan's Epiphany
+(jewel socket), Aldur's Legacy (consume unique) — carry a
+`dummy_display_stat_rune_*` placeholder instead of a rollable stat.
+`runes.ts` `runeSpecialEffect` detects them and `canSocketRune` blocks them
+with `Not simulated: <effect prose>` rather than socketing an inert no-op
+that would misrepresent the item (e.g. a Betrayal of Aldur leaving fire mods
+untouched).
+
 ## Game-accurate tooltip (user feedback, post-phase-6)
 
 Ongoing mission: the UI should match the in-game look as closely as
@@ -240,6 +256,14 @@ built Item, implicit rolls included).
   marked "uncorroborated" (Expansive gloves/boots, Celestial sceptre).
 - Essence of the Abyss has no datamined class→mod map (PoB models it
   separately) — it's correctly unusable in the sim until mapped.
+- Essence of Delirium's Body Armour mod (`EssenceGrantedPassive`) allocates a
+  random Notable Passive Skill. The datamine ships it text-less, so
+  `compile.ts` `SPECIAL_MOD_TEXT` substitutes a faithful summary ("Allocates a
+  random Notable Passive Skill") — the specific notable is not modelled.
+  `validate.ts` now fails on any blank guaranteed essence/emotion mod so this
+  can't regress. Quality currencies (Blacksmith's Whetstone, Armourer's Scrap,
+  Arcanist's Etcher, Glassblower's Bauble, Gemcutter's Prism) are not yet
+  modelled — flagged in `currency-coverage.test.ts` OUT_OF_SCOPE.
 - Omens whose mechanics we don't simulate (map/ritual omens) render dimmed in
   the Omens tab.
 - Odds for multi-roll actions (Alchemy ×4, Greater Exaltation ×2) are
@@ -320,10 +344,13 @@ tooltip column centre, character inventory right.
 ## Verification bar (keep it)
 
 Every phase so far shipped with: unit/property/golden tests on the engine
-and store (156 passing — omen interaction order, essence family, catalysts, jewels,
+and store (173 passing — omen interaction order, essence family, catalysts, jewels,
 display-unit remapping, odds-vs-empirical, share-link roundtrip, computed
 defences, tier numbering, item naming, advanced-range rendering,
 desecration reveal/omens/putrefaction, rune sockets/limits/folding,
+Masterwork tier-upgrade, non-simulated special-rune blocking,
+passive-granting essence text, an exhaustive currency-coverage ledger that
+dispatches every craftable currency through the real odds/canApply plumbing,
 grid placement/equip rules, store pickup/swap/quick-move, currency
 stacks take/merge/consume),
 statistical distribution tests where randomness matters, and for pool
