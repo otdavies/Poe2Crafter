@@ -44,5 +44,7 @@ export function describeEvent(data: EngineData, event: CraftEvent): string {
         ? `Socket ${event.index + 1}: ${name} (destroyed ${data.rune(event.replaced).name})`
         : `Socket ${event.index + 1}: ${name}`;
     }
+    case "rune_upgraded":
+      return `Socket ${event.index + 1}: ${data.rune(event.from).name} → ${data.rune(event.to).name}`;
   }
 }

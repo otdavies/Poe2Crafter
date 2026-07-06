@@ -469,3 +469,22 @@ export const SOCKET_MAX: ReadonlyMap<string, number> = new Map([
 
 /** Trade id of the Artificer's Orb (adds one rune socket). */
 export const ARTIFICER = "artificers";
+
+/**
+ * Masterwork Rune (0.5 "Runes of Aldur"): unlike an ordinary rune it is not
+ * itself socketed — "Upgrades a socketed Rune", promoting it one tier along
+ * the Lesser -> (base) -> Greater -> Perfect ladder, keeping the same rune
+ * family and host-class variant. The improved values come from the higher
+ * tier's own datamined effect. Sources: poe2wiki / fextralife Masterwork_Rune
+ * ("upgrade the socketed rune to the next tier: Lesser to Normal, Normal to
+ * Greater, Greater to Perfect"), game8 archive 603383. A rune with no higher
+ * tier (Perfect, or a tier-less special rune such as an Ancient or Aldur's
+ * rune) cannot be upgraded.
+ */
+export const MASTERWORK_RUNE = "masterwork-rune";
+
+/**
+ * Rune tier name prefixes, weakest to strongest. The base tier carries no
+ * prefix (""), so its index is the anchor Masterwork upgrades step up from.
+ */
+export const RUNE_TIERS = ["Lesser ", "", "Greater ", "Perfect "] as const;

@@ -17,8 +17,8 @@ import type {
   Essence,
   Rune,
 } from "../data/schema.ts";
-import { actionFor, applyRune, type CraftEvent } from "../engine/actions.ts";
-import { canSocketRune } from "../engine/runes.ts";
+import { actionFor, applyMasterwork, applyRune, type CraftEvent } from "../engine/actions.ts";
+import { canMasterwork, canSocketRune } from "../engine/runes.ts";
 import { EngineData } from "../engine/data.ts";
 import {
   commitDesecration,
@@ -333,9 +333,14 @@ export const useApp = create<AppState>((set, get) => ({
     if (!action) return;
     const item = currentItem(craft.session);
     const omens = new Set(armedOmens);
-    // Runes may target the exact socket the player clicked.
-    const rune = data.runeById.get(selectedCurrency);
-    if (rune && socketIndex !== undefined) {
+    // Runes may target the exact socket the player clicked. The Masterwork
+    // Rune upgrades whichever socketed rune the player clicks rather than
+    // being socketed itself, so it takes the same socket-targeting path.
+    const masterwork = action.kind === "rune_upgrade";
+    const rune = masterwork ? undefined : data.runeById.get(selectedCurrency);
+    if (masterwork && socketIndex !== undefined) {
+      if (canMasterwork(data, item, socketIndex) !== null) return;
+    } else if (rune && socketIndex !== undefined) {
       if (canSocketRune(data, item, rune, socketIndex) !== null) return;
     } else if (action.canApply(data, item, omens) !== null) {
       return;
@@ -370,9 +375,11 @@ export const useApp = create<AppState>((set, get) => ({
       return;
     }
     const result =
-      rune && socketIndex !== undefined
-        ? applyRune(data, item, rune, socketIndex)
-        : action.apply(data, item, liveRng, omens);
+      masterwork && socketIndex !== undefined
+        ? applyMasterwork(data, item, socketIndex)
+        : rune && socketIndex !== undefined
+          ? applyRune(data, item, rune, socketIndex)
+          : action.apply(data, item, liveRng, omens);
     const consumed = result.consumedOmens ?? [];
     const step: CraftStep = {
       currencyId: selectedCurrency,

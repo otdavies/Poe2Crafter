@@ -39,7 +39,13 @@ import {
   VAAL_OUTCOMES,
 } from "./mechanics.ts";
 import { rollablePool, spawnWeight, type PoolEntry, type PoolFilter } from "./modpool.ts";
-import { defaultSocketIndex, maxSockets, runeEffectFor } from "./runes.ts";
+import {
+  defaultSocketIndex,
+  firstSocketedIndex,
+  maxSockets,
+  runeEffectFor,
+  upgradedRuneId,
+} from "./runes.ts";
 
 /** One mod family (shared group set) that can be added, with its chance. */
 export interface AdditionFamily {
@@ -416,6 +422,18 @@ export function oddsFor(
           ...(replaced
             ? [`Replaces the rune in socket ${target + 1}; the old rune is destroyed`]
             : []),
+        ],
+      });
+    }
+    case "rune_upgrade": {
+      // canApply already guaranteed a socketed rune with a higher tier.
+      const index = firstSocketedIndex(item);
+      const from = item.sockets![index]!;
+      const to = upgradedRuneId(data, from)!;
+      return craft({
+        notes: [
+          `Upgrades socket ${index + 1}: ${data.rune(from).name} → ${data.rune(to).name}`,
+          "Deterministic — upgrades the socketed rune one tier",
         ],
       });
     }

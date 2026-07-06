@@ -31,7 +31,14 @@ import {
   desecrationReveal,
   putrefy,
 } from "./desecrate.ts";
-import { addSocket, canAddSocket, canSocketRune, socketRune } from "./runes.ts";
+import {
+  addSocket,
+  canAddSocket,
+  canMasterwork,
+  canSocketRune,
+  masterworkUpgrade,
+  socketRune,
+} from "./runes.ts";
 import {
   ALCHEMY_MOD_COUNT,
   ALLOYS,
@@ -41,6 +48,7 @@ import {
   catalystQualityPerUse,
   essenceTier,
   FRACTURE_MIN_EXPLICITS,
+  MASTERWORK_RUNE,
   MIN_MOD_LEVEL,
   OMEN,
   SANCTIFY_MULTIPLIER,
@@ -78,7 +86,8 @@ export type CraftEvent =
   | { kind: "corrupted" }
   | { kind: "no_change" }
   | { kind: "socket_added" }
-  | { kind: "socketed"; runeId: string; index: number; replaced?: string };
+  | { kind: "socketed"; runeId: string; index: number; replaced?: string }
+  | { kind: "rune_upgraded"; index: number; from: string; to: string };
 
 export interface CraftResult {
   item: Item;
@@ -107,7 +116,8 @@ export type ActionKind =
   | "emotion"
   | "catalyst"
   | "desecrate"
-  | "socket";
+  | "socket"
+  | "rune_upgrade";
 
 export interface CraftAction {
   /** trade API currency id, e.g. "chaos" — the key the UI dispatches on. */
@@ -922,6 +932,27 @@ function runeAction(currencyId: string, rune: Rune): CraftAction {
   };
 }
 
+/**
+ * Upgrade the socketed rune the player targets one tier (the displaced rune
+ * is consumed in place). Exported so the UI can aim the exact socket clicked;
+ * the CraftAction path upgrades the first socketed rune.
+ */
+export function applyMasterwork(data: EngineData, item: Item, index?: number): CraftResult {
+  const result = masterworkUpgrade(data, item, index);
+  return {
+    item: result.item,
+    events: [{ kind: "rune_upgraded", index: result.index, from: result.from, to: result.to }],
+  };
+}
+
+/** Masterwork Rune: upgrades a socketed rune one tier (deterministic). */
+const masterwork: CraftAction = {
+  currencyId: MASTERWORK_RUNE,
+  kind: "rune_upgrade",
+  canApply: (data, item) => canMasterwork(data, item),
+  apply: (data, item) => applyMasterwork(data, item),
+};
+
 /** Catalysts: quality that boosts matching-tag modifier values. */
 function catalystAction(currencyId: string, spec: CatalystSpec): CraftAction {
   return {
@@ -989,6 +1020,9 @@ export const ACTIONS: ReadonlyMap<string, CraftAction> = new Map(
 export function actionFor(data: EngineData, currencyId: string): CraftAction | undefined {
   const staticAction = ACTIONS.get(currencyId);
   if (staticAction) return staticAction;
+  // The Masterwork Rune lives in the rune bundle but is NOT socketed — it
+  // upgrades an already-socketed rune — so intercept it before runeAction.
+  if (currencyId === MASTERWORK_RUNE) return masterwork;
   const essence = data.essenceByCurrencyId.get(currencyId);
   if (essence) return essenceAction(currencyId, essence);
   const emotion = data.emotionByCurrencyId.get(currencyId);
