@@ -1396,21 +1396,28 @@ button.toggled {
   filter: drop-shadow(0 6px 22px #000d);
 }
 
-/* the currency family grid has three tier columns (Orb/Greater/Perfect) */
-.currency-grid {
-  grid-template-columns: minmax(90px, auto) repeat(3, 46px);
+/* the currency tab: one headerless wall of slots, like the in-game tab.
+   six columns keep each tiered family (base/Greater/Perfect) on a half-row */
+.currency-wall {
+  display: grid;
+  grid-template-columns: repeat(6, 46px);
+  gap: 6px;
+  justify-content: center;
 }
 
-/* ---- currency tab specials: crafting slot + wildcards -------------------- */
+/* ---- currency tab: central craft slot + wildcard row below -------------- */
 .currency-special {
   display: flex;
-  gap: 1.2rem;
-  align-items: flex-start;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
 }
 
-.currency-special h4 {
-  margin: 0 0 0.4rem;
+.currency-craft-slot {
+  padding: 6px;
+  border: 1px dashed #4a4030;
+  border-radius: 8px;
+  background: radial-gradient(circle at 50% 40%, #211b13 0%, #0e0b08 80%);
 }
 
 .grid-curtab,

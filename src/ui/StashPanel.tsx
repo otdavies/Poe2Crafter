@@ -91,20 +91,25 @@ const BONE_SECTIONS: { title: string; ids: string[] }[] = [
 ];
 
 /**
- * Currency tab, arranged like the game's premium tab: every orb family in
- * its own dedicated slot cluster (base / Greater / Perfect columns), the
- * single orbs beside them, a central slot to craft an item inside the tab,
- * and 14 wildcard slots at the bottom for arbitrary stackables.
+ * Currency tab, laid out like the in-game currency stash tab: one dense wall
+ * of dedicated currency slots (no section headers), a central slot to craft an
+ * item inside the tab, and the wildcard slots below. Six columns keep each
+ * tiered family (base / Greater / Perfect) together on a half-row. `null` is a
+ * spacer. Currencies the sim doesn't simulate (Wisdom/Chance/Mirror) still get
+ * their slot, dimmed, exactly as the tab shows them in game.
  */
-const ORB_FAMILIES: [label: string, row: (string | undefined)[]][] = [
-  ["Transmutation", ["transmute", "greater-orb-of-transmutation", "perfect-orb-of-transmutation"]],
-  ["Augmentation", ["aug", "greater-orb-of-augmentation", "perfect-orb-of-augmentation"]],
-  ["Regal", ["regal", "greater-regal-orb", "perfect-regal-orb"]],
-  ["Exalted", ["exalted", "greater-exalted-orb", "perfect-exalted-orb"]],
-  ["Chaos", ["chaos", "greater-chaos-orb", "perfect-chaos-orb"]],
+const CURRENCY_WALL: (string | null)[] = [
+  "transmute", "greater-orb-of-transmutation", "perfect-orb-of-transmutation",
+  "aug", "greater-orb-of-augmentation", "perfect-orb-of-augmentation",
+  "regal", "greater-regal-orb", "perfect-regal-orb",
+  "exalted", "greater-exalted-orb", "perfect-exalted-orb",
+  "chaos", "greater-chaos-orb", "perfect-chaos-orb",
+  "alch", "annul", "divine",
+  "vaal", "fracturing-orb", "artificers",
+  "whetstone", "etcher", "scrap",
+  "bauble", "gcp", null,
+  "wisdom", "chance", "mirror",
 ];
-const ORB_TIERS = ["Orb", "Greater", "Perfect"] as const;
-const SINGLE_ORBS = ["alch", "annul", "divine", "vaal", "fracturing-orb", "artificers"];
 
 /** Crafting omens in display order; the rest of the Ritual tab is dimmed. */
 const CRAFT_OMEN_ORDER: string[] = [
@@ -338,27 +343,17 @@ export function StashPanel({
         {tab === "Currency" && (
           <>
             <div className="stash-section">
-              <div className="essence-grid currency-grid">
-                <span className="essence-head" />
-                {ORB_TIERS.map((t) => (
-                  <span key={t} className="essence-head">{t}</span>
-                ))}
-                {ORB_FAMILIES.map(([label, row]) => (
-                  <CurrencyRow key={label} label={label} row={row} slot={slot} />
-                ))}
+              <div className="currency-wall">
+                {CURRENCY_WALL.map((id, i) =>
+                  id ? slot(id) : <span key={`gap-${i}`} className="slot slot-empty" />,
+                )}
               </div>
-            </div>
-            <div className="stash-section">
-              <h4>Other orbs</h4>
-              <div className="slot-grid">{SINGLE_ORBS.map((id) => slot(id))}</div>
             </div>
             <div className="stash-section currency-special">
               <div className="currency-craft-slot">
-                <h4>Crafting slot</h4>
                 <ItemGrid container="curtab" runeIcons={runeIcons} onHoverObject={onHoverObject} />
               </div>
               <div className="currency-wildcards">
-                <h4>Wildcard slots</h4>
                 <ItemGrid container="curwild" runeIcons={runeIcons} onHoverObject={onHoverObject} />
               </div>
             </div>
@@ -501,23 +496,6 @@ export function StashPanel({
         </div>
       )}
     </section>
-  );
-}
-
-function CurrencyRow({ label, row, slot }: {
-  label: string;
-  row: (string | undefined)[];
-  slot: (id: string) => React.ReactNode;
-}) {
-  return (
-    <>
-      <span className="essence-type">{label}</span>
-      {row.map((id, i) => (
-        <span key={i} className="essence-cell">
-          {id ? slot(id) : <span className="slot slot-empty" />}
-        </span>
-      ))}
-    </>
   );
 }
 
