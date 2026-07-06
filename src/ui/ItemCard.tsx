@@ -278,9 +278,11 @@ export function ItemCard({
   if (stats.length > 0 || item.quality) {
     sections.push(
       <ul className="item-stats" key="stats">
-        {item.quality && tag && (
+        {item.quality && (
           <li className="stat-line quality-line">
-            <span className="stat-label">Quality ({tag} Modifiers):</span>
+            <span className="stat-label">
+              {tag ? `Quality (${tag} Modifiers):` : "Quality:"}
+            </span>
             <span className="stat-value">
               +{item.quality.percent}% (max {maxQuality(data, item)}%)
             </span>

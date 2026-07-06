@@ -51,6 +51,7 @@ import {
   MASTERWORK_RUNE,
   MIN_MOD_LEVEL,
   OMEN,
+  QUALITY_CURRENCIES,
   SANCTIFY_MULTIPLIER,
   TIME_LOST_PREFIX,
   VAAL_BEYOND_LIMITS_MULTIPLIER,
@@ -60,6 +61,7 @@ import {
   type BoneSpec,
   type CatalystSpec,
   type CurrencyTier,
+  type QualitySpec,
 } from "./mechanics.ts";
 import {
   catalysedPool,
@@ -115,6 +117,7 @@ export type ActionKind =
   | "alloy"
   | "emotion"
   | "catalyst"
+  | "quality"
   | "desecrate"
   | "socket"
   | "rune_upgrade";
@@ -279,7 +282,9 @@ export function planAddition(
       plan.consumed.push(OMEN.homogenisingExaltation);
     }
     if (omens.has(OMEN.catalysingExaltation)) {
-      if (!item.quality || item.quality.percent <= 0) {
+      // Only catalyst quality (a tag) can be consumed to boost matching mods;
+      // base weapon/armour quality has no tag and doesn't qualify.
+      if (!qualityTag(item) || !item.quality || item.quality.percent <= 0) {
         return { ...plan, blocked: "No catalyst quality to consume" };
       }
       plan.catalyse = true;
@@ -985,6 +990,38 @@ function catalystAction(currencyId: string, spec: CatalystSpec): CraftAction {
   };
 }
 
+/** Whether the item currently carries base (non-catalyst) quality. */
+const hasBaseQuality = (item: Item): boolean =>
+  item.quality !== undefined && item.quality.catalystId === undefined;
+
+/** Base quality (Whetstone/Etcher/Scrap): a %-increase to the item's own stats. */
+function qualityAction(currencyId: string, spec: QualitySpec): CraftAction {
+  return {
+    currencyId,
+    kind: "quality",
+    canApply(data, item) {
+      const blocked = usable(item);
+      if (blocked) return blocked;
+      const itemClass = data.base(item.baseId).itemClass;
+      if (!spec.itemClasses.includes(itemClass)) {
+        return `Can only be applied to a ${spec.label}`;
+      }
+      if (hasBaseQuality(item) && item.quality!.percent >= maxQuality(data, item)) {
+        return "Quality is already at maximum";
+      }
+      return null;
+    },
+    apply(data, item, _rng) {
+      const max = maxQuality(data, item);
+      const current = hasBaseQuality(item) ? item.quality!.percent : 0;
+      const quality: ItemQuality = {
+        percent: Math.min(max, current + catalystQualityPerUse(item.ilvl)),
+      };
+      return { item: { ...item, quality }, events: [{ kind: "quality", quality }] };
+    },
+  };
+}
+
 // --- Registry ------------------------------------------------------------------
 
 export const ACTIONS: ReadonlyMap<string, CraftAction> = new Map(
@@ -1029,6 +1066,8 @@ export function actionFor(data: EngineData, currencyId: string): CraftAction | u
   if (emotion) return emotionAction(currencyId, emotion);
   const catalyst = CATALYSTS.get(currencyId);
   if (catalyst) return catalystAction(currencyId, catalyst);
+  const quality = QUALITY_CURRENCIES.get(currencyId);
+  if (quality) return qualityAction(currencyId, quality);
   const alloy = ALLOYS.get(currencyId);
   if (alloy) return alloyAction(currencyId, alloy);
   const bone = BONES.get(currencyId);

@@ -359,6 +359,19 @@ export function oddsFor(
         ],
       });
     }
+    case "quality": {
+      const perUse = catalystQualityPerUse(item.ilvl);
+      const props = data.base(item.baseId).properties ?? {};
+      const hasPhys = props.physMin !== undefined || props.physMax !== undefined;
+      const hasDefence = Boolean(props.armour || props.evasion || props.energyShield || props.ward);
+      const target = hasPhys ? "physical damage" : hasDefence ? "defences" : "its base stats";
+      return craft({
+        notes: [
+          `+${perUse}% quality per use (max ${maxQuality(data, item)}%), increasing ${target}`,
+          "Deterministic — quality has no random outcome",
+        ],
+      });
+    }
     case "desecrate": {
       const spec = BONES.get(currencyId)!;
       if (omens.has(OMEN.putrefaction)) {

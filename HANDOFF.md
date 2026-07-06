@@ -81,7 +81,16 @@ Engine essentials:
   is full. Corrupted essences do NOT corrupt the item. Catalysts fit rings/
   amulets only (Refined set = jewels), quality-per-use scales with ilvl
   (approximated in `catalystQualityPerUse`), a different type replaces from
-  zero, cap 20 raised by Essence of the Breach's mod. Vaal outcomes updated
+  zero, cap 20 raised by Essence of the Breach's mod. **Base-quality
+  currencies** (`QUALITY_CURRENCIES`, kind `quality`) are the other quality
+  family: Blacksmith's Whetstone (martial weapons), Arcanist's Etcher (caster
+  weapons) and Armourer's Scrap (armour) raise the item's OWN quality — an
+  `ItemQuality` with no `catalystId` — which `defences.ts` folds as a
+  %-increase to physical damage (weapons) or defences (armour), reusing the
+  catalyst per-use curve and 20 cap. Caster weapons carry no datamined damage
+  so their quality is tracked but scales nothing (documented gap). Glassblower's
+  Bauble (flasks) and Gemcutter's Prism (skill gems) resolve to the same action
+  but always block, since the sim crafts neither. Vaal outcomes updated
   to the 0.5 community table (no change / chaos×1-3 / enchant /
   beyond-limits value multiply). `ALLOYS` maps alloy → itemClass →
   datamined `Alloy*` mod ids (weight 0 everywhere; integrity-tested).
@@ -261,9 +270,7 @@ built Item, implicit rolls included).
   `compile.ts` `SPECIAL_MOD_TEXT` substitutes a faithful summary ("Allocates a
   random Notable Passive Skill") — the specific notable is not modelled.
   `validate.ts` now fails on any blank guaranteed essence/emotion mod so this
-  can't regress. Quality currencies (Blacksmith's Whetstone, Armourer's Scrap,
-  Arcanist's Etcher, Glassblower's Bauble, Gemcutter's Prism) are not yet
-  modelled — flagged in `currency-coverage.test.ts` OUT_OF_SCOPE.
+  can't regress.
 - Omens whose mechanics we don't simulate (map/ritual omens) render dimmed in
   the Omens tab.
 - Odds for multi-roll actions (Alchemy ×4, Greater Exaltation ×2) are
@@ -344,7 +351,8 @@ tooltip column centre, character inventory right.
 ## Verification bar (keep it)
 
 Every phase so far shipped with: unit/property/golden tests on the engine
-and store (173 passing — omen interaction order, essence family, catalysts, jewels,
+and store (183 passing — omen interaction order, essence family, catalysts,
+weapon/armour base quality, jewels,
 display-unit remapping, odds-vs-empirical, share-link roundtrip, computed
 defences, tier numbering, item naming, advanced-range rendering,
 desecration reveal/omens/putrefaction, rune sockets/limits/folding,

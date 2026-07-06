@@ -255,6 +255,36 @@ const BODY_ARMOUR_SLOTS = [
 ] as const;
 
 /**
+ * Base-quality currencies: unlike catalysts (which boost matching-tag mod
+ * values on jewellery/jewels) these raise an item's own quality, a %-increase
+ * to its primary property — physical damage for weapons, defences for armour.
+ * Each targets a distinct item-class family, so an item only ever admits one.
+ * The Bauble and Gemcutter's Prism target flasks and skill gems, which the sim
+ * doesn't craft, so they resolve to a quality action that always blocks with a
+ * clear reason (better than silently doing nothing). Max quality is 20% (same
+ * MAX_QUALITY cap as catalysts); per-use gain scales with item level like
+ * catalysts (2–4% at endgame, more at low levels; 1% on uniques, which the sim
+ * has none of). Sources: poe2wiki / fextralife per-currency pages
+ * (Blacksmith's_Whetstone martial weapons, Arcanist's_Etcher wand/staff/
+ * sceptre, Armourer's_Scrap armour incl. shields & foci), 0.3+ current in 0.5.
+ * TODO(0.5-verify): exact per-use quality curve (shared with catalysts).
+ */
+export interface QualitySpec {
+  /** Item classes this quality currency can be applied to. */
+  itemClasses: readonly string[];
+  /** Singular label for the "Can only be applied to Xs" blocker. */
+  label: string;
+}
+
+export const QUALITY_CURRENCIES: ReadonlyMap<string, QualitySpec> = new Map([
+  ["whetstone", { itemClasses: MARTIAL_WEAPONS, label: "Martial Weapon" }],
+  ["etcher", { itemClasses: CASTER_WEAPONS, label: "Caster Weapon" }],
+  ["scrap", { itemClasses: BODY_ARMOUR_SLOTS, label: "piece of Armour" }],
+  ["bauble", { itemClasses: [], label: "Flask" }],
+  ["gcp", { itemClasses: [], label: "Skill Gem" }],
+]);
+
+/**
  * itemClass -> guaranteed mod id(s). When several tiers exist, ids are
  * ordered by mod required level; the highest one the item's ilvl allows is
  * granted.

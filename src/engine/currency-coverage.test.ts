@@ -48,10 +48,6 @@ const OUT_OF_SCOPE: ScopeRule[] = [
     match: (id) => id.endsWith("-idol") || id.startsWith("idol-of-"),
   },
   {
-    reason: "Quality currencies (weapon/armour/gem/flask quality) — not yet modelled",
-    ids: ["whetstone", "scrap", "etcher", "bauble", "gcp"],
-  },
-  {
     reason: "Item-target currency with no in-sim effect (identify, duplicate, upgrade-to-unique, rune-socket rerolls)",
     ids: [
       "wisdom",

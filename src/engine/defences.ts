@@ -74,6 +74,18 @@ export interface ComputedProperties {
   augmented: ReadonlySet<PropKey>;
 }
 
+/**
+ * The properties base quality (Whetstone/Etcher/Scrap) increases: physical
+ * damage on weapons, present defences on armour. Caster weapons carry no
+ * datamined damage numbers, so quality on them is tracked but has nothing to
+ * scale (a documented gap, like weapon range).
+ */
+function baseQualityProps(base: BaseProperties): PropKey[] {
+  if (base.physMin !== undefined || base.physMax !== undefined) return ["physMin", "physMax"];
+  const defences: PropKey[] = ["armour", "evasion", "energyShield", "ward"];
+  return defences.filter((key) => (base[key] ?? 0) > 0);
+}
+
 export function computedProperties(data: EngineData, item: Item): ComputedProperties {
   const base = data.base(item.baseId).properties ?? {};
   const flat: Partial<Record<PropKey, number>> = {};
@@ -95,6 +107,16 @@ export function computedProperties(data: EngineData, item: Item): ComputedProper
     const mod = data.mod(rolled.modId);
     const values = effectiveValues(data, item, rolled);
     mod.stats.forEach((stat, i) => fold(stat.id, values[i] ?? 0));
+  }
+
+  // Base quality (Whetstone/Etcher/Scrap) is a %-increase to the item's own
+  // primary property, additive with local increased mods. Catalyst quality
+  // (which has a catalystId) boosts mod values instead — handled above via
+  // effectiveValues, not here.
+  if (item.quality && item.quality.catalystId === undefined && item.quality.percent > 0) {
+    for (const key of baseQualityProps(base)) {
+      increased[key] = (increased[key] ?? 0) + item.quality.percent;
+    }
   }
 
   // Socketed runes: fixed values live inside the display text; when the

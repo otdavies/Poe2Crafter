@@ -15,10 +15,14 @@ export interface RolledMod {
   fractured?: boolean;
 }
 
-/** Catalyst quality on jewellery/jewels. */
+/** Item quality — either catalyst quality (jewellery/jewels) or base quality. */
 export interface ItemQuality {
-  /** Trade id of the applied catalyst, e.g. "flesh-catalyst". */
-  catalystId: string;
+  /**
+   * Trade id of the applied catalyst, e.g. "flesh-catalyst". Absent for base
+   * quality (Whetstone/Etcher/Scrap), which raises the item's own primary
+   * property instead of boosting matching-tag modifiers.
+   */
+  catalystId?: string;
   percent: number;
 }
 
@@ -103,7 +107,7 @@ export function takenGroups(data: EngineData, item: Item): Set<string> {
 
 /** The catalyst tag boosted by the item's current quality, if any. */
 export function qualityTag(item: Item): string | undefined {
-  return item.quality ? CATALYSTS.get(item.quality.catalystId)?.tag : undefined;
+  return item.quality?.catalystId ? CATALYSTS.get(item.quality.catalystId)?.tag : undefined;
 }
 
 /** Max catalyst quality: 20, raised by "+X% to Maximum Quality" mods. */
