@@ -53,6 +53,30 @@ function stripMarkup(text: string): string {
     .replace(/\[([^\]]+)\]/g, "$1");
 }
 
+/**
+ * A handful of mods carry no display text in the datamine because their real
+ * effect is resolved at runtime (a randomly-chosen passive) rather than being
+ * a fixed line. Without a description they render as a blank modifier line, so
+ * we substitute a faithful summary keyed by the mod's stat id. Currently the
+ * only currency-reachable case is Essence of Delirium's granted passive.
+ * Source: poe2wiki Essence_of_Delirium ("Allocates a random Notable Passive
+ * Skill" on the item).
+ */
+const SPECIAL_MOD_TEXT: Record<string, string> = {
+  mod_granted_passive_hash_essence: "Allocates a random Notable Passive Skill",
+};
+
+/** Display text for a mod, falling back to a summary for text-less specials. */
+function modText(raw: any): string {
+  const text = stripMarkup(raw.text ?? "");
+  if (text.trim() !== "") return text;
+  for (const stat of (raw.stats ?? []) as { id: string }[]) {
+    const special = SPECIAL_MOD_TEXT[stat.id];
+    if (special) return special;
+  }
+  return text;
+}
+
 async function exists(path: string): Promise<boolean> {
   return access(path).then(
     () => true,
@@ -297,7 +321,7 @@ if (cached.get("mods.min.json")) {
       const mod: Mod = {
         id,
         name: m.name,
-        text: stripMarkup(m.text ?? ""),
+        text: modText(m),
         generation: m.generation_type,
         groups: m.groups,
         ilvl: m.required_level,

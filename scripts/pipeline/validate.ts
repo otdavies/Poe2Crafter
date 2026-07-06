@@ -71,10 +71,15 @@ for (const mod of mods) {
   }
 }
 
-// Essences: every guaranteed mod resolves; every essence has an icon
+// A guaranteed craft mod must render as a real line — a blank one shows as an
+// empty modifier in the item card (see compile.ts SPECIAL_MOD_TEXT).
+const described = (modId: string): boolean => (modById.get(modId)?.text ?? "").trim() !== "";
+
+// Essences: every guaranteed mod resolves and has display text; every essence has an icon
 for (const essence of essences) {
   for (const [itemClass, modId] of Object.entries(essence.mods)) {
     check(modById.has(modId), `essence ${essence.name}: unresolved mod ${modId} (${itemClass})`);
+    check(described(modId), `essence ${essence.name}: blank guaranteed mod ${modId} (${itemClass})`);
   }
   if (!essence.icon) warnings.push(`essence ${essence.name}: no icon matched from trade API`);
 }
@@ -82,6 +87,7 @@ for (const emotion of emotions) {
   for (const slots of Object.values(emotion.mods)) {
     for (const modId of Object.values(slots)) {
       check(modById.has(modId), `emotion ${emotion.name}: unresolved mod ${modId}`);
+      check(described(modId), `emotion ${emotion.name}: blank guaranteed mod ${modId}`);
     }
   }
 }

@@ -128,6 +128,27 @@ describe("essences", () => {
     expect(action("perfect-essence-of-the-body").canApply(data, magic)).toMatch(/Rare/);
   });
 
+  it("passive-granting essence (Delirium) adds a described, non-blank modifier", () => {
+    // Essence of Delirium's Body Armour mod grants a random Notable Passive.
+    // The datamine ships it text-less; the pipeline substitutes a summary so
+    // it never renders as a blank modifier line.
+    const delirium = data.essenceByCurrencyId.get("essence-of-delirium")!;
+    const granted = delirium.mods["Body Armour"];
+    expect(granted).toBe("EssenceGrantedPassive");
+    expect(data.mod(granted).text.trim()).not.toBe("");
+
+    const empty = rareWith(data, bodyBase, []);
+    const suffixes = pickPoolMods(data, empty, "suffix", 1, (m) =>
+      m.groups.every((g) => !data.mod(granted).groups.includes(g)),
+    );
+    const item = rareWith(data, bodyBase, suffixes);
+    const act = action("essence-of-delirium");
+    expect(act.canApply(data, item)).toBeNull();
+    const result = act.apply(data, item, seededRng(83));
+    expect(result.item.corrupted).toBe(false);
+    expect(result.item.explicits.map((m) => m.modId)).toContain(granted);
+  });
+
   it("corrupted essences behave like Perfect (swap on rare, no corruption)", () => {
     for (const name of CORRUPTED_ESSENCES) {
       const essence = data.essenceByCurrencyId.get(tradeSlug(name));
